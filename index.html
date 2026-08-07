@@ -181,17 +181,13 @@ input[type=file]{display:none}
 <audio id="audio" ontimeupdate="onTime()" onended="onEnd()" onloadedmetadata="onMeta()"></audio>
 
 <script type="module">
-import{get,set,keys}from'https://cdn.jsdelivr.net/npm/idb-keyval@6/+esm';
+import{get,set,keys,del}from'https://cdn.jsdelivr.net/npm/idb-keyval@6/+esm';
 const $=id=>document.getElementById(id),audio=$('audio');
 
 /* ===== ZERO SECRETS / ZERO KEYS ===== */
-/* GitHub: Put MP3s in Songs/ folder of your public repo */
-/* Google Drive: Create a public songs.json manifest (see instructions) */
-/* Local: Use the + button to upload MP3s from your phone/PC */
 const SOURCES=[
   {type:'github',user:'beyondcodertg-pixel',repo:'VSMusicPlayer',folder:'Songs'}
-  // Example Google Drive manifest (no API key needed):
-  // {type:'manifest',url:'https://drive.google.com/uc?export=download&id=YOUR_FILE_ID'}
+  // {type:'manifest',url:'https://yourdomain.com/songs.json'}
 ];
 
 const S={view:'library',sub:'songs',songs:[],playlists:[],cpl:null,idx:0,q:[],shuf:false,rep:false,skip:new Set(),find:'',add:null,lyr:[],akey:'',rkey:'',gkey:''};
@@ -204,6 +200,11 @@ const readTags=(buf,cb)=>{try{jsmediatags.read(new Blob([buf]),{onSuccess:t=>{co
 const esc=s=>String(s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const grp=(arr,k)=>{const o={};arr.forEach(x=>{const v=x[k]||'Unknown';(o[v]=o[v]||[]).push(x)});return o};
 const cur=()=>S.q[S.idx]||null;
+
+/* Detect mobile / PWA so we only auto-resume there */
+const isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+const isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+const allowAutoResume=isStandalone||isMobile;
 
 async function loadAll(){
   S.songs=[];S.skip=new Set((await get('skipped'))||[]);
@@ -235,8 +236,9 @@ async function loadMF(src){
   try{const r=await fetch(src.url);if(!r.ok)return;const list=await r.json();list.forEach((s,i)=>S.songs.push({id:'m:'+i,title:s.title||'Unknown',artist:s.artist||'Unknown',album:s.album||'',genre:s.genre||'',year:s.year||'',url:s.url,art:s.art||'',lyrics:s.lyrics||'',dur:s.dur||0,src:'manifest'}))}catch(e){}
 }
 
+/* ===== FIXED: use vsm_ prefix so old app songs don't leak in ===== */
 async function loadLocal(){
-  for(const k of (await keys()).filter(x=>x.startsWith('s_'))){
+  for(const k of (await keys()).filter(x=>x.startsWith('vsm_'))){
     const s=await get(k);if(s)S.songs.push({id:'l:'+k,title:s.title||'Unknown',artist:s.artist||'Unknown',album:s.album||'My Library',genre:s.genre||'',year:s.year||'',art:s.art||'',lyrics:s.lyrics||'',dur:s.dur||0,buf:s.buf,type:s.type,src:'local',filename:s.filename});
   }
 }
@@ -381,23 +383,29 @@ window.onTime=onTime;window.onMeta=onMeta;window.onEnd=onEnd;
 
 function updMedia(s){if(!('mediaSession' in navigator))return;navigator.mediaSession.metadata=new MediaMetadata({title:s.title,artist:s.artist,album:s.album,artwork:s.art?[{src:s.art,sizes:'512x512'}]:[]});navigator.mediaSession.setActionHandler('play',()=>audio.play());navigator.mediaSession.setActionHandler('pause',()=>audio.pause());navigator.mediaSession.setActionHandler('previoustrack',prev);navigator.mediaSession.setActionHandler('nexttrack',next);}
 
+/* ===== FIXED: vsm_ prefix isolates this app from old MusicPlayer ===== */
 async function handleFiles(e){
   const files=[...e.target.files];if(!files.length)return;
   for(const f of files){
     const buf=await f.arrayBuffer(),n=f.name.replace(/\.[^.]+$/,'');
     const t=await new Promise(r=>readTags(buf,r));
     const s={...t,title:t.title||n,artist:t.artist||'Unknown',album:t.album||'My Library',type:f.type,buf,filename:f.name};
-    const k='s_'+Date.now()+'_'+n;await set(k,s);
+    const k='vsm_'+Date.now()+'_'+n;await set(k,s);
     S.songs.push({id:'l:'+k,...s,src:'local'});
   }
   validatePL();render();
 }
 window.handleFiles=handleFiles;
 
+/* ===== FIXED: only auto-resume on mobile / PWA, not desktop browser tabs ===== */
 let wasP=false;
 audio.onpause=()=>{wasP=!audio.ended&&!audio.seeking;updBtn(false)};
 audio.onplay=()=>updBtn(true);
-document.addEventListener('visibilitychange',()=>{if(!document.hidden&&wasP&&audio.paused&&!audio.ended)audio.play().catch(()=>{})});
+document.addEventListener('visibilitychange',()=>{
+  if(!document.hidden && wasP && audio.paused && !audio.ended && allowAutoResume){
+    audio.play().catch(()=>{});
+  }
+});
 document.addEventListener('click',()=>{const c=audio.context||(window.AudioContext&&new AudioContext());if(c&&c.state==='suspended')c.resume()},{once:true});
 
 loadAll();
