@@ -1,0 +1,655 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#000000">
+<title>VS Music</title>
+<style>
+:root{--bg:#000;--surface:#121212;--surface2:#1c1c1e;--surface3:#2c2c2e;--text:#fff;--text2:#a1a1a6;--accent:#fa2d48;--divider:rgba(255,255,255,0.08);--safe-top:env(safe-area-inset-top);--safe-bottom:env(safe-area-inset-bottom);}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;overflow:hidden;}
+#app{height:100%;display:flex;flex-direction:column;position:relative;}
+.header{flex-shrink:0;padding:calc(12px + var(--safe-top)) 20px 12px;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--divider);z-index:100;}
+.header h1{font-size:28px;font-weight:700;letter-spacing:-0.5px;}
+.tabs{flex-shrink:0;display:flex;gap:20px;padding:0 20px 8px;background:rgba(0,0,0,0.85);backdrop-filter:blur(20px);border-bottom:1px solid var(--divider);overflow-x:auto;scrollbar-width:none;}
+.tabs::-webkit-scrollbar{display:none;}
+.tab{flex-shrink:0;padding:8px 0;font-size:15px;font-weight:500;color:var(--text2);background:none;border:none;cursor:pointer;position:relative;white-space:nowrap;}
+.tab.active{color:var(--text);}
+.tab.active::after{content:"";position:absolute;bottom:0;left:0;right:0;height:2px;background:var(--accent);border-radius:1px;}
+.content{flex:1;overflow-y:auto;overflow-x:hidden;-webkit-overflow-scrolling:touch;padding:0 0 calc(100px + var(--safe-bottom)) 0;}
+.list-row{display:flex;align-items:center;gap:12px;padding:8px 20px;cursor:pointer;transition:background 0.15s;}
+.list-row:active{background:var(--surface2);}
+.list-row-art{flex-shrink:0;width:48px;height:48px;border-radius:6px;background:var(--surface2);display:flex;align-items:center;justify-content:center;overflow:hidden;}
+.list-row-art img{width:100%;height:100%;object-fit:cover;}
+.list-row-art .art-placeholder{width:100%;height:100%;background:linear-gradient(135deg,var(--surface3),var(--surface2));display:flex;align-items:center;justify-content:center;font-size:18px;}
+.list-row-info{flex:1;min-width:0;}
+.list-row-title{font-size:15px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.list-row-sub{font-size:13px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;margin-top:2px;}
+.list-row-arrow{color:var(--text2);font-size:14px;}
+.list-row.now-playing .list-row-title{color:var(--accent);}
+.song-row{padding:6px 20px;}
+.song-row .list-row-art{width:44px;height:44px;border-radius:4px;}
+.song-row .list-row-title{font-size:14px;}
+.song-row .list-row-sub{font-size:12px;}
+.song-row .song-num{width:28px;text-align:center;color:var(--text2);font-size:14px;flex-shrink:0;}
+.song-row.now-playing .song-num{color:var(--accent);}
+.search-box{position:sticky;top:0;z-index:90;background:rgba(0,0,0,0.9);backdrop-filter:blur(20px);padding:8px 20px;border-bottom:1px solid var(--divider);}
+.search-input{width:100%;background:var(--surface2);border:none;border-radius:10px;padding:10px 16px 10px 36px;color:var(--text);font-size:15px;outline:none;-webkit-appearance:none;}
+.search-input::placeholder{color:var(--text2);}
+.search-icon{position:absolute;left:28px;top:50%;transform:translateY(-50%);color:var(--text2);font-size:14px;pointer-events:none;}
+.player{position:fixed;bottom:calc(56px + var(--safe-bottom));left:0;right:0;background:rgba(28,28,30,0.95);backdrop-filter:blur(30px);border-top:1px solid var(--divider);padding:8px 16px;display:flex;align-items:center;gap:12px;z-index:200;transition:transform 0.3s;}
+.player.hidden{transform:translateY(200%);}
+.player-progress{position:absolute;top:-2px;left:0;right:0;height:2px;background:var(--surface3);cursor:pointer;}
+.player-progress-fill{height:100%;background:var(--accent);width:0%;transition:width 0.1s linear;}
+.player-art{width:40px;height:40px;border-radius:4px;background:var(--surface2);overflow:hidden;flex-shrink:0;}
+.player-art img{width:100%;height:100%;object-fit:cover;}
+.player-info{flex:1;min-width:0;}
+.player-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.player-artist{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.player-btn{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;width:36px;height:36px;}
+.player-btn.play{font-size:28px;color:var(--accent);}
+.full-player{position:fixed;inset:0;background:var(--bg);z-index:300;display:flex;flex-direction:column;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.32,0.72,0,1);}
+.full-player.open{transform:translateY(0);}
+.full-header{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + var(--safe-top)) 20px 12px;}
+.full-header-btn{background:none;border:none;color:var(--accent);font-size:14px;font-weight:600;cursor:pointer;}
+.full-art{flex:1;display:flex;align-items:center;justify-content:center;padding:20px;}
+.full-art-img{width:min(320px,70vw);aspect-ratio:1;border-radius:12px;background:var(--surface2);overflow:hidden;box-shadow:0 20px 60px rgba(0,0,0,0.5);}
+.full-art-img img{width:100%;height:100%;object-fit:cover;}
+.full-info{padding:0 32px 16px;text-align:center;}
+.full-title{font-size:20px;font-weight:700;}
+.full-artist{font-size:16px;color:var(--text2);margin-top:4px;}
+.full-progress{padding:0 32px 8px;}
+.full-progress-bar{height:4px;background:var(--surface3);border-radius:2px;overflow:hidden;cursor:pointer;position:relative;}
+.full-progress-bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--prog,0%);background:var(--accent);border-radius:2px;}
+.full-time{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:4px;}
+.full-controls{display:flex;align-items:center;justify-content:center;gap:24px;padding:16px 32px 24px;}
+.full-btn{background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:8px;}
+.full-btn.play{width:64px;height:64px;background:var(--text);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;}
+.full-btn.shuffle.active,.full-btn.repeat.active{color:var(--accent);}
+.full-extras{display:flex;justify-content:center;gap:32px;padding:8px 32px 24px;}
+.full-extra-btn{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:8px;}
+.full-extra-btn.active{color:var(--accent);}
+.full-lyrics{flex:1;overflow-y:auto;padding:20px 32px;text-align:center;line-height:2;color:var(--text2);font-size:15px;display:none;}
+.full-lyrics.show{display:block;}
+.full-lyrics .active{color:var(--text);font-weight:600;}
+.bottom-nav{position:fixed;bottom:0;left:0;right:0;height:calc(56px + var(--safe-bottom));background:rgba(0,0,0,0.9);backdrop-filter:blur(20px);border-top:1px solid var(--divider);display:flex;justify-content:space-around;align-items:flex-start;padding-top:6px;z-index:250;padding-bottom:var(--safe-bottom);}
+.nav-btn{background:none;border:none;color:var(--text2);font-size:10px;display:flex;flex-direction:column;align-items:center;gap:2px;cursor:pointer;padding:4px 12px;}
+.nav-btn svg{width:24px;height:24px;stroke:currentColor;fill:none;stroke-width:1.8;}
+.nav-btn.active{color:var(--accent);}
+.nav-btn.active svg{fill:currentColor;stroke:none;}
+.nav-btn span{font-size:10px;margin-top:1px;}
+.fab{position:fixed;bottom:calc(72px + var(--safe-bottom));right:16px;width:52px;height:52px;background:var(--accent);border:none;border-radius:50%;color:#fff;font-size:28px;display:flex;align-items:center;justify-content:center;cursor:pointer;box-shadow:0 4px 16px rgba(250,45,72,0.4);z-index:210;}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(5px);z-index:400;display:none;align-items:flex-end;justify-content:center;}
+.modal.show{display:flex;}
+.modal-sheet{background:var(--surface);border-radius:16px 16px 0 0;width:100%;max-width:500px;max-height:80vh;overflow-y:auto;padding:16px 0 calc(20px + var(--safe-bottom));animation:slideUp 0.3s;}
+@keyframes slideUp{from{transform:translateY(100%);}to{transform:translateY(0);}}
+.modal-header{display:flex;align-items:center;justify-content:space-between;padding:0 20px 12px;border-bottom:1px solid var(--divider);}
+.modal-title{font-size:17px;font-weight:600;}
+.modal-close{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;}
+.modal-body{padding:8px 0;}
+.modal-row{display:flex;align-items:center;gap:12px;padding:12px 20px;cursor:pointer;}
+.modal-row:active{background:var(--surface2);}
+.modal-row-icon{width:32px;height:32px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-size:16px;}
+.modal-row-text{flex:1;font-size:15px;}
+.modal-input{width:calc(100% - 40px);margin:8px 20px;background:var(--surface2);border:none;border-radius:10px;padding:12px 16px;color:var(--text);font-size:15px;outline:none;}
+.modal-btn{width:calc(100% - 40px);margin:12px 20px;background:var(--accent);border:none;border-radius:10px;padding:14px;color:#fff;font-size:16px;font-weight:600;cursor:pointer;}
+.modal-hint{padding:0 20px 8px;font-size:13px;color:var(--text2);line-height:1.5;}
+.modal-textarea{width:calc(100% - 40px);margin:8px 20px;background:var(--surface2);border:none;border-radius:10px;padding:12px 16px;color:var(--text);font-size:14px;outline:none;min-height:120px;font-family:inherit;resize:vertical;}
+.toast{position:fixed;top:calc(16px + var(--safe-top));left:50%;transform:translateX(-50%) translateY(-100px);background:rgba(50,50,50,0.95);color:#fff;padding:10px 20px;border-radius:20px;font-size:14px;z-index:500;transition:transform 0.3s;pointer-events:none;}
+.toast.show{transform:translateX(-50%) translateY(0);}
+.empty{text-align:center;padding:60px 20px;color:var(--text2);}
+.empty-icon{font-size:48px;margin-bottom:12px;opacity:0.5;}
+.empty-title{font-size:17px;font-weight:600;color:var(--text);margin-bottom:4px;}
+.empty-sub{font-size:14px;}
+.ctx-menu{position:fixed;background:var(--surface2);border-radius:12px;padding:8px 0;min-width:200px;box-shadow:0 8px 32px rgba(0,0,0,0.5);z-index:450;display:none;}
+.ctx-menu.show{display:block;}
+.ctx-item{padding:10px 16px;font-size:14px;cursor:pointer;}
+.ctx-item:active{background:var(--surface3);}
+.ctx-item.danger{color:#ff453a;}
+.meta-toast{position:fixed;top:calc(52px + var(--safe-top));left:50%;transform:translateX(-50%);background:rgba(250,45,72,0.9);color:#fff;padding:6px 16px;border-radius:16px;font-size:12px;z-index:120;display:none;}
+.meta-toast.show{display:block;}
+#fileInput{display:none;}
+@media(min-width:1024px){
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:260px;background:var(--surface);border-right:1px solid var(--divider);padding-top:var(--safe-top);z-index:300;display:flex;flex-direction:column;}
+.sidebar-header{padding:20px 24px 12px;}
+.sidebar-nav{flex:1;overflow-y:auto;padding:0 12px;}
+.sidebar-btn{display:flex;align-items:center;gap:12px;width:calc(100% - 8px);margin:2px 4px;padding:10px 12px;background:none;border:none;color:var(--text2);font-size:15px;border-radius:8px;cursor:pointer;text-align:left;}
+.sidebar-btn.active{background:var(--surface3);color:var(--text);}
+.sidebar-btn svg{width:22px;height:22px;}
+.main-area{margin-left:260px;height:100vh;display:flex;flex-direction:column;}
+.bottom-nav{display:none;}
+.player{bottom:0;left:260px;}
+.fab{right:24px;bottom:24px;}
+.content{padding-bottom:80px;}
+}
+@media(max-width:1023px){.sidebar{display:none;}}
+</style>
+</head>
+<body>
+<div id="app">
+<aside class="sidebar" id="sidebar"><div class="sidebar-header"><h1>VS Music</h1></div><nav class="sidebar-nav" id="sidebarNav"></nav></aside>
+<div class="main-area" id="mainArea">
+<div class="header" id="header"><h1 id="pageTitle">Library</h1><div class="header-sub" id="headerSub"></div></div>
+<div class="tabs" id="tabs"></div>
+<div class="search-box" id="searchBox" style="display:none;"><span class="search-icon">🔍</span><input type="text" class="search-input" id="searchInput" placeholder="Search songs, artists, albums..." autocomplete="off" autocorrect="off" autocapitalize="off"></div>
+<div class="content" id="content"></div>
+</div>
+<div class="player hidden" id="playerBar">
+<div class="player-progress" id="miniProgress"><div class="player-progress-fill" id="miniFill"></div></div>
+<div class="player-art" id="miniArt"><div class="art-placeholder">🎵</div></div>
+<div class="player-info"><div class="player-title" id="miniTitle">Select a song</div><div class="player-artist" id="miniArtist">VS Music</div></div>
+<button class="player-btn" id="miniPrev">⏮</button>
+<button class="player-btn play" id="miniPlay">▶</button>
+<button class="player-btn" id="miniNext">⏭</button>
+</div>
+<div class="full-player" id="fullPlayer">
+<div class="full-header"><button class="full-header-btn" id="fullDown">▼</button><span style="font-size:13px;font-weight:600;color:var(--text2);">Now Playing</span><button class="full-header-btn" id="fullQueue">☰</button></div>
+<div class="full-art" id="fullArtWrap"><div class="full-art-img" id="fullArt"><div class="art-placeholder" style="width:100%;height:100%;display:flex;align-items:center;justify-content:center;font-size:64px;">🎵</div></div></div>
+<div class="full-info"><div class="full-title" id="fullTitle">Select a song</div><div class="full-artist" id="fullArtist">VS Music</div></div>
+<div class="full-progress"><div class="full-progress-bar" id="fullProgress"></div><div class="full-time"><span id="curTime">0:00</span><span id="durTime">0:00</span></div></div>
+<div class="full-controls">
+<button class="full-btn shuffle" id="btnShuffle">⇄</button>
+<button class="full-btn" id="btnPrev">⏮</button>
+<button class="full-btn play" id="btnPlay">▶</button>
+<button class="full-btn" id="btnNext">⏭</button>
+<button class="full-btn repeat" id="btnRepeat">🔁</button>
+</div>
+<div class="full-extras">
+<button class="full-extra-btn" id="btnLyrics">📝</button>
+<button class="full-extra-btn" id="btnLike">♡</button>
+<button class="full-extra-btn" id="btnAirplay">📡</button>
+</div>
+<div class="full-lyrics" id="lyricsPanel"></div>
+</div>
+<nav class="bottom-nav" id="bottomNav">
+<button class="nav-btn active" data-nav="library"><svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg><span>Library</span></button>
+<button class="nav-btn" data-nav="sources"><svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg><span>Sources</span></button>
+<button class="nav-btn" data-nav="playlists"><svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2"/></svg><span>Lists</span></button>
+<button class="nav-btn" data-nav="search"><svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg><span>Search</span></button>
+</nav>
+<button class="fab" id="fab">+</button>
+<div class="modal" id="modal"><div class="modal-sheet" id="modalSheet"></div></div>
+<div class="toast" id="toast"></div>
+<div class="meta-toast" id="metaToast"></div>
+<div class="ctx-menu" id="ctxMenu"></div>
+<input type="file" id="fileInput" accept="audio/*" multiple>
+</div>
+<script>
+const SOURCES=[{type:'github',user:'beyondcodertg-pixel',repo:'VSMusicPlayer',folder:'Songs'}];
+let songs=[],queue=[],historyStack=[],currentIndex=-1,isPlaying=false,isShuffled=false,repeatMode=0;
+let currentTab='library',currentSubTab='songs',audio=new Audio(),playlists={},liked=new Set(),sources=[],db=null,searchQuery='';
+let wasPlayingBeforeHide=false,lastVisibilityTime=0;
+let isStandalone=window.matchMedia('(display-mode: standalone)').matches||navigator.standalone===true;
+let isMobile=/iPhone|iPad|iPod|Android/i.test(navigator.userAgent);
+let allowAutoResume=isStandalone||isMobile;
+let metaScanning=false;
+
+function openDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open('vsm_db',3);
+    r.onerror=()=>rej(r.error);
+    r.onsuccess=()=>{db=r.result;res(db);};
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      ['playlists','liked','sources','locals','metadata'].forEach(s=>{if(!d.objectStoreNames.contains(s))d.createObjectStore(s);});
+    };
+  });
+}
+async function dbGet(store,key){return new Promise((res,rej)=>{const t=db.transaction(store,'readonly'),s=t.objectStore(store),r=s.get(key);r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error);});}
+async function dbSet(store,key,val){return new Promise((res,rej)=>{const t=db.transaction(store,'readwrite'),s=t.objectStore(store),r=s.put(val,key);r.onsuccess=()=>res();r.onerror=()=>rej(r.error);});}
+
+async function init(){
+  await openDB();
+  playlists=await dbGet('playlists','data')||{};
+  liked=new Set((await dbGet('liked','data'))||[]);
+  sources=(await dbGet('sources','data'))||[];
+  const locals=(await dbGet('locals','data'))||[];
+  songs=[...locals];
+  await loadGithubSongs();
+  await refreshAllSources();
+  buildSidebar();
+  render();
+  setupAudio();
+  setupEvents();
+  setupVisibility();
+  setupMediaSession();
+  scanMissingMetadata();
+}
+
+async function loadGithubSongs(){
+  for(const src of SOURCES){
+    if(src.type!=='github')continue;
+    try{
+      const res=await fetch(`https://api.github.com/repos/${src.user}/${src.repo}/contents/${encodeURIComponent(src.folder)}`);
+      if(!res.ok)continue;
+      const files=await res.json();
+      for(const f of files){
+        if(!f.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i))continue;
+        const url=`https://raw.githubusercontent.com/${src.user}/${src.repo}/main/${src.folder}/${encodeURIComponent(f.name)}`;
+        if(!songs.find(s=>s.url===url)){
+          const song={id:'gh_'+f.sha,title:f.name.replace(/\.[^.]+$/,''),artist:'Unknown Artist',album:'',genre:'',year:'',url,source:'github',art:'',duration:0};
+          // Try to load cached metadata
+          const meta=await dbGet('metadata',song.id);
+          if(meta){Object.assign(song,meta);}
+          songs.push(song);
+        }
+      }
+    }catch(e){console.log('GitHub load error',e);}
+  }
+}
+
+async function scanMissingMetadata(){
+  const needScan=songs.filter(s=>s.source==='github'&&s.artist==='Unknown Artist'&&!s._metaScanned);
+  if(!needScan.length)return;
+  metaScanning=true;
+  showMetaToast('Reading song metadata...');
+  let scanned=0;
+  for(let i=0;i<needScan.length;i+=3){
+    const batch=needScan.slice(i,i+3);
+    await Promise.all(batch.map(async(song)=>{
+      try{
+        const meta=await fetchMetadata(song.url);
+        if(meta.title&&meta.title!==song.title)song.title=meta.title;
+        if(meta.artist)song.artist=meta.artist;
+        if(meta.album)song.album=meta.album;
+        if(meta.genre)song.genre=meta.genre;
+        if(meta.year)song.year=String(meta.year);
+        if(meta.picture)song.art=meta.picture;
+        song._metaScanned=true;
+        await dbSet('metadata',song.id,{title:song.title,artist:song.artist,album:song.album,genre:song.genre,year:song.year,art:song.art});
+      }catch(e){song._metaScanned=true;}
+    }));
+    scanned+=batch.length;
+    showMetaToast(`Reading metadata... ${scanned}/${needScan.length}`);
+    // Re-render if user is on a metadata tab
+    if(['artists','albums','genres','years'].includes(currentSubTab)||['artist_detail','album_detail','genre_detail','year_detail'].includes(currentTab)){
+      render();
+    }
+  }
+  hideMetaToast();
+  metaScanning=false;
+}
+
+async function fetchMetadata(url){
+  try{
+    const res=await fetch(url,{headers:{'Range':'bytes=0-131071'}});
+    if(!res.ok)return{};
+    const blob=await res.blob();
+    const file=new File([blob],'temp.mp3',{type:'audio/mpeg'});
+    return await readID3(file);
+  }catch(e){return{};}
+}
+
+async function refreshAllSources(){for(const src of sources){try{if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='manifest')await refreshManifest(src);}catch(e){}}}
+
+async function refreshOneDrive(src){
+  songs=songs.filter(s=>s.sourceId!==src.id);
+  const shareId=extractOneDriveId(src.url);if(!shareId)return;
+  try{
+    const res=await fetch(`https://api.onedrive.com/v1.0/shares/u!${shareId}/root?expand=children(select=name,id,@content.downloadUrl)`);
+    if(!res.ok)return;
+    const data=await res.json();
+    if(data.children)for(const child of data.children){if(!child.name.match(/\.(mp3|wav|ogg|m4a|flac)$/i))continue;songs.push({id:'od_'+child.id,title:child.name.replace(/\.[^.]+$/,''),artist:'Unknown Artist',album:'',genre:'',year:'',url:child['@content.downloadUrl'],source:'onedrive',sourceId:src.id,art:'',duration:0});}
+  }catch(e){}
+}
+
+async function refreshGDriveLinks(src){
+  songs=songs.filter(s=>s.sourceId!==src.id);
+  for(const link of src.links||[]){
+    const id=extractGDriveId(link);if(!id)continue;
+    const url=`https://drive.google.com/uc?export=download&id=${id}`;
+    songs.push({id:'gd_'+id,title:'Drive Song',artist:'Unknown Artist',album:'',genre:'',year:'',url,source:'gdrive',sourceId:src.id,art:'',duration:0});
+  }
+}
+
+async function refreshManifest(src){
+  songs=songs.filter(s=>s.sourceId!==src.id);
+  try{
+    const res=await fetch(src.url);if(!res.ok)return;
+    const data=await res.json();
+    for(const item of(data||[])){if(!item.url)continue;songs.push({id:'mf_'+btoa(item.url).slice(0,20),title:item.title||'Unknown',artist:item.artist||'Unknown Artist',album:item.album||'',genre:item.genre||'',year:String(item.year||''),url:item.url,source:'manifest',sourceId:src.id,art:item.art||'',lyrics:item.lyrics||'',duration:0});}
+  }catch(e){}
+}
+
+function extractGDriveId(url){const m=url.match(/\/d\/([\w-]+)/)||url.match(/id=([\w-]+)/)||url.match(/([\w-]{25,})/);return m?m[1]:null;}
+function extractOneDriveId(url){try{return btoa(url).replace(/=+$/,'');}catch(e){return null;}}
+
+function buildSidebar(){
+  const nav=document.getElementById('sidebarNav');
+  const items=[
+    {id:'library',label:'Library',icon:'<svg viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h16"/></svg>'},
+    {id:'sources',label:'Sources',icon:'<svg viewBox="0 0 24 24"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5"/></svg>'},
+    {id:'playlists',label:'Playlists',icon:'<svg viewBox="0 0 24 24"><path d="M9 18V5l12-2v13M9 9l12-2"/></svg>'},
+    {id:'search',label:'Search',icon:'<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>'},
+  ];
+  nav.innerHTML=items.map(it=>`<button class="sidebar-btn ${it.id===currentTab?'active':''}" data-nav="${it.id}">${it.icon}<span>${it.label}</span></button>`).join('');
+  nav.querySelectorAll('.sidebar-btn').forEach(btn=>{btn.onclick=()=>{currentTab=btn.dataset.nav;render();};});
+}
+
+function render(){
+  updateNav();updateSidebar();
+  document.getElementById('pageTitle').textContent=currentTab==='library'?'Library':currentTab==='sources'?'Sources':currentTab==='playlists'?'Playlists':'Search';
+  document.getElementById('headerSub').innerHTML='';
+  document.getElementById('searchBox').style.display=currentTab==='search'?'block':'none';
+  document.getElementById('tabs').innerHTML='';
+  document.getElementById('content').innerHTML='';
+  if(currentTab==='library')renderLibrary();
+  else if(currentTab==='sources')renderSources();
+  else if(currentTab==='playlists')renderPlaylists();
+  else if(currentTab==='search')renderSearch();
+}
+function updateNav(){document.querySelectorAll('.nav-btn').forEach(b=>b.classList.toggle('active',b.dataset.nav===currentTab));}
+function updateSidebar(){document.querySelectorAll('.sidebar-btn').forEach(b=>b.classList.toggle('active',b.dataset.nav===currentTab));}
+
+function renderLibrary(){
+  const tabs=document.getElementById('tabs');
+  const subTabs=['songs','artists','albums','genres','years'];
+  tabs.innerHTML=subTabs.map(t=>`<button class="tab ${t===currentSubTab?'active':''}" data-sub="${t}">${t[0].toUpperCase()+t.slice(1)}</button>`).join('');
+  tabs.querySelectorAll('.tab').forEach(btn=>{btn.onclick=()=>{currentSubTab=btn.dataset.sub;renderLibraryContent();};});
+  renderLibraryContent();
+}
+function renderLibraryContent(){
+  const content=document.getElementById('content');content.innerHTML='';
+  if(currentSubTab==='songs')renderSongsList(content,songs,'No songs yet. Add from Sources or tap +.');
+  else if(currentSubTab==='artists')renderArtistsList(content);
+  else if(currentSubTab==='albums')renderAlbumsList(content);
+  else if(currentSubTab==='genres')renderGenresList(content);
+  else if(currentSubTab==='years')renderYearsList(content);
+}
+
+function renderSongsList(container,list,emptyMsg){
+  if(!list.length){container.innerHTML=`<div class="empty"><div class="empty-icon">🎵</div><div class="empty-title">No Songs</div><div class="empty-sub">${emptyMsg}</div></div>`;return;}
+  list.forEach((song,idx)=>{
+    const row=document.createElement('div');
+    row.className='list-row song-row'+(queue[currentIndex]?.id===song.id?' now-playing':'');
+    row.innerHTML=`<div class="song-num">${queue[currentIndex]?.id===song.id?'▶':(idx+1)}</div><div class="list-row-art">${song.art?`<img src="${song.art}" loading="lazy">`:'<div class="art-placeholder">🎵</div>'}</div><div class="list-row-info"><div class="list-row-title">${esc(song.title)}</div><div class="list-row-sub">${esc(song.artist)}${song.album?' — '+esc(song.album):''}${song.year?' • '+esc(song.year):''}</div></div>`;
+    row.onclick=()=>playSong(song,list);
+    row.oncontextmenu=e=>showCtx(e,song);
+    container.appendChild(row);
+  });
+}
+
+function renderArtistsList(container){
+  const artists={};
+  songs.forEach(song=>{const names=splitArtists(song.artist);names.forEach(name=>{const key=name.trim();if(!key)return;if(!artists[key])artists[key]=[];artists[key].push(song);});});
+  const sorted=Object.keys(artists).sort((a,b)=>a.localeCompare(b));
+  if(!sorted.length){container.innerHTML=`<div class="empty"><div class="empty-icon">🎤</div><div class="empty-title">No Artists</div></div>`;return;}
+  sorted.forEach(artist=>{
+    const row=document.createElement('div');row.className='list-row';
+    const artSongs=artists[artist];const art=artSongs.find(s=>s.art)?.art||'';
+    row.innerHTML=`<div class="list-row-art">${art?`<img src="${art}" loading="lazy">`:'<div class="art-placeholder">🎤</div>'}</div><div class="list-row-info"><div class="list-row-title">${esc(artist)}</div><div class="list-row-sub">${artSongs.length} song${artSongs.length>1?'s':''}</div></div><div class="list-row-arrow">›</div>`;
+    row.onclick=()=>showArtistSongs(artist,artSongs);
+    container.appendChild(row);
+  });
+}
+
+function renderAlbumsList(container){
+  const albums={};
+  songs.forEach(s=>{const k=s.album||'Unknown Album';if(!albums[k])albums[k]=[];albums[k].push(s);});
+  const sorted=Object.keys(albums).sort((a,b)=>a.localeCompare(b));
+  if(!sorted.length){container.innerHTML=`<div class="empty"><div class="empty-icon">💿</div><div class="empty-title">No Albums</div></div>`;return;}
+  sorted.forEach(album=>{
+    const row=document.createElement('div');row.className='list-row';
+    const albSongs=albums[album];const art=albSongs.find(s=>s.art)?.art||'';const artist=albSongs[0].artist||'Unknown Artist';
+    row.innerHTML=`<div class="list-row-art">${art?`<img src="${art}" loading="lazy">`:'<div class="art-placeholder">💿</div>'}</div><div class="list-row-info"><div class="list-row-title">${esc(album)}</div><div class="list-row-sub">${esc(artist)} • ${albSongs.length} song${albSongs.length>1?'s':''}</div></div><div class="list-row-arrow">›</div>`;
+    row.onclick=()=>showAlbumSongs(album,albSongs);
+    container.appendChild(row);
+  });
+}
+
+function renderGenresList(container){
+  const genres={};
+  songs.forEach(s=>{const k=s.genre||'Unknown Genre';if(!genres[k])genres[k]=[];genres[k].push(s);});
+  const sorted=Object.keys(genres).sort((a,b)=>a.localeCompare(b));
+  if(!sorted.length){container.innerHTML=`<div class="empty"><div class="empty-icon">🎸</div><div class="empty-title">No Genres</div></div>`;return;}
+  sorted.forEach(genre=>{
+    const row=document.createElement('div');row.className='list-row';
+    const genSongs=genres[genre];
+    row.innerHTML=`<div class="list-row-art"><div class="art-placeholder">🎸</div></div><div class="list-row-info"><div class="list-row-title">${esc(genre)}</div><div class="list-row-sub">${genSongs.length} song${genSongs.length>1?'s':''}</div></div><div class="list-row-arrow">›</div>`;
+    row.onclick=()=>showGenreSongs(genre,genSongs);
+    container.appendChild(row);
+  });
+}
+
+function renderYearsList(container){
+  const years={};
+  songs.forEach(s=>{const k=s.year||'Unknown Year';if(!years[k])years[k]=[];years[k].push(s);});
+  const sorted=Object.keys(years).sort((a,b)=>{if(a==='Unknown Year')return 1;if(b==='Unknown Year')return-1;return parseInt(b)-parseInt(a);});
+  if(!sorted.length){container.innerHTML=`<div class="empty"><div class="empty-icon">📅</div><div class="empty-title">No Years</div></div>`;return;}
+  sorted.forEach(year=>{
+    const row=document.createElement('div');row.className='list-row';
+    const yrSongs=years[year];
+    row.innerHTML=`<div class="list-row-art"><div class="art-placeholder">📅</div></div><div class="list-row-info"><div class="list-row-title">${esc(year)}</div><div class="list-row-sub">${yrSongs.length} song${yrSongs.length>1?'s':''}</div></div><div class="list-row-arrow">›</div>`;
+    row.onclick=()=>showYearSongs(year,yrSongs);
+    container.appendChild(row);
+  });
+}
+
+function splitArtists(artistStr){if(!artistStr)return['Unknown Artist'];return artistStr.split(/,\s*|\s+&\s+|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+|\s+x\s+/i).filter(Boolean);}
+
+function showArtistSongs(artist,list){historyStack.push({tab:currentTab,subTab:currentSubTab});currentTab='artist_detail';document.getElementById('pageTitle').textContent=esc(artist);document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');content.innerHTML='';renderSongsList(content,list,'No songs');}
+function showAlbumSongs(album,list){historyStack.push({tab:currentTab,subTab:currentSubTab});currentTab='album_detail';document.getElementById('pageTitle').textContent=esc(album);document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');content.innerHTML='';renderSongsList(content,list,'No songs');}
+function showGenreSongs(genre,list){historyStack.push({tab:currentTab,subTab:currentSubTab});currentTab='genre_detail';document.getElementById('pageTitle').textContent=esc(genre);document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');content.innerHTML='';renderSongsList(content,list,'No songs');}
+function showYearSongs(year,list){historyStack.push({tab:currentTab,subTab:currentSubTab});currentTab='year_detail';document.getElementById('pageTitle').textContent=esc(year);document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');content.innerHTML='';renderSongsList(content,list,'No songs');}
+
+function renderSources(){
+  const content=document.getElementById('content');content.innerHTML='';
+  if(!sources.length){content.innerHTML=`<div class="empty"><div class="empty-icon">☁️</div><div class="empty-title">No Sources</div><div class="empty-sub">Tap + to connect your cloud storage</div></div>`;return;}
+  sources.forEach((src,idx)=>{
+    const row=document.createElement('div');row.className='list-row';
+    const icon=src.type==='onedrive_folder'?'☁️':src.type==='gdrive_links'?'📁':src.type==='manifest'?'📄':'🔗';
+    const label=src.type==='onedrive_folder'?'OneDrive Folder':src.type==='gdrive_links'?'Google Drive Links':src.type==='manifest'?'Manifest':'Link';
+    const count=songs.filter(s=>s.sourceId===src.id).length;
+    row.innerHTML=`<div class="list-row-art"><div class="art-placeholder">${icon}</div></div><div class="list-row-info"><div class="list-row-title">${esc(src.name||label)}</div><div class="list-row-sub">${count} songs • ${label}</div></div><button class="header-btn" style="margin:0;" onclick="event.stopPropagation();refreshSource(${idx})">🔄</button><button class="header-btn" style="margin:0;margin-left:4px;background:var(--surface3);" onclick="event.stopPropagation();removeSource(${idx})">🗑</button>`;
+    row.onclick=()=>showSourceSongs(src);
+    content.appendChild(row);
+  });
+}
+function showSourceSongs(src){historyStack.push({tab:currentTab});currentTab='source_detail';document.getElementById('pageTitle').textContent=esc(src.name||'Source');document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');const list=songs.filter(s=>s.sourceId===src.id);content.innerHTML='';renderSongsList(content,list,'No songs in this source');}
+
+async function refreshSource(idx){const src=sources[idx];showToast('Refreshing...');if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='manifest')await refreshManifest(src);await dbSet('sources','data',sources);render();showToast('Refreshed');}
+async function removeSource(idx){if(!confirm('Remove this source? Songs will be deleted from library.'))return;const src=sources[idx];songs=songs.filter(s=>s.sourceId!==src.id);sources.splice(idx,1);await dbSet('sources','data',sources);render();showToast('Source removed');}
+
+function renderPlaylists(){
+  const content=document.getElementById('content');content.innerHTML='';
+  const names=Object.keys(playlists);
+  if(!names.length){content.innerHTML=`<div class="empty"><div class="empty-icon">📋</div><div class="empty-title">No Playlists</div><div class="empty-sub">Create a playlist from the player menu</div></div>`;return;}
+  names.forEach(name=>{
+    const row=document.createElement('div');row.className='list-row';
+    const plist=playlists[name]||[];
+    row.innerHTML=`<div class="list-row-art"><div class="art-placeholder">📋</div></div><div class="list-row-info"><div class="list-row-title">${esc(name)}</div><div class="list-row-sub">${plist.length} songs</div></div><div class="list-row-arrow">›</div>`;
+    row.onclick=()=>showPlaylist(name);
+    row.oncontextmenu=e=>{e.preventDefault();showCtxMenu(e.clientX,e.clientY,[{label:'Play',action:()=>{const list=playlists[name]||[];if(list.length)playSong(list[0],list);}},{label:'Rename',action:()=>renamePlaylist(name)},{label:'Delete',action:()=>deletePlaylist(name),danger:true}]);};
+    content.appendChild(row);
+  });
+}
+function showPlaylist(name){historyStack.push({tab:currentTab});currentTab='playlist_detail';document.getElementById('pageTitle').textContent=esc(name);document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');const list=(playlists[name]||[]).map(id=>songs.find(s=>s.id===id)).filter(Boolean);content.innerHTML='';renderSongsList(content,list,'Playlist is empty');}
+
+async function createPlaylist(name){if(!name||playlists[name])return;playlists[name]=[];await dbSet('playlists','data',playlists);render();}
+async function addToPlaylist(songId,playlistName){if(!playlists[playlistName])playlists[playlistName]=[];if(!playlists[playlistName].includes(songId))playlists[playlistName].push(songId);await dbSet('playlists','data',playlists);showToast('Added to '+playlistName);}
+async function renamePlaylist(oldName){const newName=prompt('New name:',oldName);if(!newName||newName===oldName||playlists[newName])return;playlists[newName]=playlists[oldName];delete playlists[oldName];await dbSet('playlists','data',playlists);render();}
+async function deletePlaylist(name){if(!confirm('Delete "'+name+'"?'))return;delete playlists[name];await dbSet('playlists','data',playlists);render();}
+
+function renderSearch(){
+  const content=document.getElementById('content');content.innerHTML='';
+  if(!searchQuery){content.innerHTML=`<div class="empty"><div class="empty-icon">🔍</div><div class="empty-title">Search</div><div class="empty-sub">Type to search songs, artists, albums...</div></div>`;return;}
+  const q=searchQuery.toLowerCase();
+  const results=songs.filter(s=>(s.title||'').toLowerCase().includes(q)||(s.artist||'').toLowerCase().includes(q)||(s.album||'').toLowerCase().includes(q)||(s.genre||'').toLowerCase().includes(q)||(s.year||'').toLowerCase().includes(q));
+  renderSongsList(content,results,'No results for "'+esc(searchQuery)+'"');
+}
+
+function setupAudio(){
+  audio.addEventListener('timeupdate',updateProgress);
+  audio.addEventListener('ended',onEnded);
+  audio.addEventListener('loadedmetadata',()=>{document.getElementById('durTime').textContent=fmtTime(audio.duration);});
+  audio.addEventListener('play',()=>{isPlaying=true;updatePlayBtn();});
+  audio.addEventListener('pause',()=>{isPlaying=false;updatePlayBtn();});
+  audio.addEventListener('error',()=>{showToast('Error playing song');nextSong();});
+}
+function updateProgress(){if(!audio.duration)return;const pct=(audio.currentTime/audio.duration)*100;document.getElementById('miniFill').style.width=pct+'%';document.getElementById('fullProgress').style.setProperty('--prog',pct+'%');document.getElementById('curTime').textContent=fmtTime(audio.currentTime);updateLyrics(audio.currentTime);}
+function onEnded(){if(repeatMode===2){audio.currentTime=0;audio.play();}else if(isShuffled)playRandom();else nextSong();}
+
+function playSong(song,list){
+  if(!song||!song.url)return;
+  if(list&&list.length)queue=[...list];
+  currentIndex=queue.findIndex(s=>s.id===song.id);
+  if(currentIndex<0){queue=[song];currentIndex=0;}
+  audio.src=song.url;audio.play().catch(()=>{});
+  updatePlayerUI(song);
+  document.getElementById('playerBar').classList.remove('hidden');
+  isPlaying=true;updatePlayBtn();
+  document.querySelectorAll('.now-playing').forEach(el=>el.classList.remove('now-playing'));
+  setTimeout(()=>{document.querySelectorAll('.list-row').forEach(row=>{if(row.onclick&&row.onclick.toString().includes(song.id))row.classList.add('now-playing');});},50);
+}
+function updatePlayerUI(song){
+  document.getElementById('miniTitle').textContent=song.title;
+  document.getElementById('miniArtist').textContent=song.artist;
+  document.getElementById('fullTitle').textContent=song.title;
+  document.getElementById('fullArtist').textContent=song.artist;
+  const art=song.art||'';const artHtml=art?`<img src="${art}">`:'<div class="art-placeholder">🎵</div>';
+  document.getElementById('miniArt').innerHTML=artHtml;document.getElementById('fullArt').innerHTML=artHtml;
+  document.getElementById('btnLike').textContent=liked.has(song.id)?'♥':'♡';
+  document.getElementById('btnLike').classList.toggle('active',liked.has(song.id));
+  renderLyrics(song.lyrics||'');updateMediaSession(song);
+}
+function togglePlay(){if(!audio.src)return;if(isPlaying){audio.pause();}else{audio.play().catch(()=>{});}}
+function updatePlayBtn(){const icon=isPlaying?'⏸':'▶';document.getElementById('miniPlay').textContent=icon;document.getElementById('btnPlay').textContent=icon;}
+function nextSong(){if(!queue.length)return;if(isShuffled)playRandom();else{currentIndex=(currentIndex+1)%queue.length;playSong(queue[currentIndex],queue);}}
+function prevSong(){if(!queue.length)return;if(audio.currentTime>3){audio.currentTime=0;return;}if(isShuffled)playRandom();else{currentIndex=(currentIndex-1+queue.length)%queue.length;playSong(queue[currentIndex],queue);}}
+function playRandom(){if(queue.length<=1)return;let next;do{next=Math.floor(Math.random()*queue.length);}while(next===currentIndex&&queue.length>1);currentIndex=next;playSong(queue[currentIndex],queue);}
+
+function updateLyrics(time){if(!window._lyrics)return;const lines=window._lyrics;let active=-1;for(let i=0;i<lines.length;i++)if(lines[i].time<=time)active=i;document.querySelectorAll('#lyricsPanel .active').forEach(el=>el.classList.remove('active'));const panel=document.getElementById('lyricsPanel');const lineEl=panel.children[active];if(lineEl){lineEl.classList.add('active');lineEl.scrollIntoView({behavior:'smooth',block:'center'});}}
+function renderLyrics(lrcText){const panel=document.getElementById('lyricsPanel');if(!lrcText){panel.innerHTML='<div style="padding-top:40px;opacity:0.4;">No lyrics</div>';window._lyrics=[];return;}const lines=[];const html=lrcText.split('\n').map(line=>{const m=line.match(/\[(\d+):([\d.]+)\](.*)/);if(m){lines.push({time:parseInt(m[1])*60+parseFloat(m[2]),text:m[3].trim()});return `<div data-time="${parseInt(m[1])*60+parseFloat(m[2])}">${esc(m[3].trim())}</div>`;}return '';}).filter(Boolean).join('');panel.innerHTML=html||'<div style="padding-top:40px;opacity:0.4;">No synced lyrics</div>';window._lyrics=lines;}
+
+function setupMediaSession(){if('mediaSession' in navigator){navigator.mediaSession.setActionHandler('play',()=>audio.play());navigator.mediaSession.setActionHandler('pause',()=>audio.pause());navigator.mediaSession.setActionHandler('previoustrack',prevSong);navigator.mediaSession.setActionHandler('nexttrack',nextSong);}}
+function updateMediaSession(song){if('mediaSession' in navigator){navigator.mediaSession.metadata=new MediaMetadata({title:song.title,artist:song.artist,album:song.album||'',artwork:song.art?[{src:song.art,sizes:'512x512',type:'image/jpeg'}]:[]});}}
+
+function setupEvents(){
+  document.querySelectorAll('.nav-btn').forEach(btn=>{btn.onclick=()=>{currentTab=btn.dataset.nav;render();};});
+  const searchInput=document.getElementById('searchInput');
+  searchInput.addEventListener('input',e=>{searchQuery=e.target.value;if(currentTab==='search')renderSearch();});
+  document.getElementById('miniPlay').onclick=togglePlay;document.getElementById('miniNext').onclick=nextSong;document.getElementById('miniPrev').onclick=prevSong;
+  document.getElementById('btnPlay').onclick=togglePlay;document.getElementById('btnNext').onclick=nextSong;document.getElementById('btnPrev').onclick=prevSong;
+  document.getElementById('btnShuffle').onclick=function(){isShuffled=!isShuffled;this.classList.toggle('active',isShuffled);showToast(isShuffled?'Shuffle On':'Shuffle Off');};
+  document.getElementById('btnRepeat').onclick=function(){repeatMode=(repeatMode+1)%3;this.classList.toggle('active',repeatMode>0);this.textContent=repeatMode===2?'🔂':'🔁';showToast(['Repeat Off','Repeat All','Repeat One'][repeatMode]);};
+  document.getElementById('miniTitle').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
+  document.getElementById('miniArtist').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
+  document.getElementById('miniArt').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
+  document.getElementById('fullDown').onclick=()=>document.getElementById('fullPlayer').classList.remove('open');
+  document.getElementById('btnLyrics').onclick=function(){document.getElementById('fullArtWrap').style.display=document.getElementById('fullArtWrap').style.display==='none'?'flex':'none';document.getElementById('lyricsPanel').classList.toggle('show');this.classList.toggle('active');};
+  document.getElementById('btnLike').onclick=async function(){const song=queue[currentIndex];if(!song)return;if(liked.has(song.id)){liked.delete(song.id);showToast('Removed from Liked');}else{liked.add(song.id);showToast('Added to Liked');}await dbSet('liked','data',Array.from(liked));this.textContent=liked.has(song.id)?'♥':'♡';this.classList.toggle('active',liked.has(song.id));};
+  document.getElementById('miniProgress').onclick=e=>{const rect=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-rect.left)/rect.width;if(audio.duration)audio.currentTime=pct*audio.duration;};
+  document.getElementById('fullProgress').onclick=e=>{const rect=e.currentTarget.getBoundingClientRect();const pct=(e.clientX-rect.left)/rect.width;if(audio.duration)audio.currentTime=pct*audio.duration;};
+  document.getElementById('fab').onclick=()=>showAddModal();
+  document.getElementById('fileInput').onchange=async e=>{
+    const files=Array.from(e.target.files);if(!files.length)return;
+    showToast('Processing '+files.length+' file(s)...');
+    const locals=(await dbGet('locals','data'))||[];
+    for(const file of files){
+      const url=URL.createObjectURL(file);
+      const existing=locals.find(l=>l.title===file.name.replace(/\.[^.]+$/,''));
+      if(existing)continue;
+      const song={id:'loc_'+Date.now()+'_'+Math.random().toString(36).slice(2,8),title:file.name.replace(/\.[^.]+$/,''),artist:'Unknown Artist',album:'',genre:'',year:'',url,source:'local',art:'',duration:0};
+      try{const meta=await readID3(file);if(meta.title)song.title=meta.title;if(meta.artist)song.artist=meta.artist;if(meta.album)song.album=meta.album;if(meta.genre)song.genre=meta.genre;if(meta.year)song.year=String(meta.year);if(meta.picture)song.art=meta.picture;}catch(e){}
+      locals.push(song);songs.push(song);
+    }
+    await dbSet('locals','data',locals);document.getElementById('fileInput').value='';render();showToast('Added '+files.length+' song(s)');
+  };
+  document.getElementById('modal').onclick=e=>{if(e.target===document.getElementById('modal'))closeModal();};
+  document.getElementById('fullQueue').onclick=()=>showQueueModal();
+  window.addEventListener('popstate',()=>{if(historyStack.length){const prev=historyStack.pop();currentTab=prev.tab;if(prev.subTab)currentSubTab=prev.subTab;render();}});
+}
+
+function setupVisibility(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden){wasPlayingBeforeHide=isPlaying;lastVisibilityTime=Date.now();}
+    else{const hiddenDuration=Date.now()-lastVisibilityTime;const isShortHide=hiddenDuration<30000;if(allowAutoResume&&wasPlayingBeforeHide&&isShortHide&&!isPlaying){audio.play().catch(()=>{});}wasPlayingBeforeHide=false;}
+  });
+  if(isMobile){audio.addEventListener('pause',()=>{if(document.hidden)wasPlayingBeforeHide=true;});}
+}
+
+function showAddModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add Music</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-row" onclick="closeModal();document.getElementById('fileInput').click();"><div class="modal-row-icon">📱</div><div class="modal-row-text">Add from Device</div></div><div class="modal-row" onclick="closeModal();showSourceModal();"><div class="modal-row-icon">☁️</div><div class="modal-row-text">Add Cloud Source</div></div><div class="modal-row" onclick="closeModal();showCreatePlaylistModal();"><div class="modal-row-icon">📋</div><div class="modal-row-text">Create Playlist</div></div></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+function showSourceModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add Cloud Source</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-row" onclick="closeModal();showOneDriveModal();"><div class="modal-row-icon">☁️</div><div class="modal-row-text">OneDrive Folder</div></div><div class="modal-row" onclick="closeModal();showGDriveModal();"><div class="modal-row-icon">📁</div><div class="modal-row-text">Google Drive Links</div></div><div class="modal-row" onclick="closeModal();showManifestModal();"><div class="modal-row-icon">📄</div><div class="modal-row-text">Manifest JSON</div></div></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+function showOneDriveModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">OneDrive Folder</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-hint">1. Go to OneDrive → right-click your Music folder<br>2. Share → Anyone with the link → Copy<br>3. Paste the link below</div><input type="text" class="modal-input" id="odName" placeholder="Name (e.g. My Music)"><input type="text" class="modal-input" id="odUrl" placeholder="Paste OneDrive share link here"><button class="modal-btn" onclick="addOneDrive()">Connect Folder</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function addOneDrive(){const name=document.getElementById('odName').value||'OneDrive';const url=document.getElementById('odUrl').value.trim();if(!url){showToast('Please paste a link');return;}const id='src_'+Date.now();sources.push({id,name,url,type:'onedrive_folder'});await dbSet('sources','data',sources);closeModal();showToast('Connecting...');await refreshOneDrive(sources[sources.length-1]);await dbSet('sources','data',sources);currentTab='sources';render();showToast('Connected!');}
+function showGDriveModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Google Drive Links</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-hint">Paste Google Drive share links (one per line).<br>Right-click each MP3 in Drive → Share → Anyone with the link → Copy link.</div><input type="text" class="modal-input" id="gdName" placeholder="Name (e.g. My Drive Songs)"><textarea class="modal-textarea" id="gdUrls" placeholder="https://drive.google.com/file/d/ABC123/view&#10;https://drive.google.com/file/d/XYZ789/view"></textarea><button class="modal-btn" onclick="addGDrive()">Add Links</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function addGDrive(){const name=document.getElementById('gdName').value||'Google Drive';const text=document.getElementById('gdUrls').value.trim();if(!text){showToast('Please paste links');return;}const links=text.split('\n').map(l=>l.trim()).filter(l=>l);const id='src_'+Date.now();sources.push({id,name,links,type:'gdrive_links'});await dbSet('sources','data',sources);closeModal();showToast('Adding links...');await refreshGDriveLinks(sources[sources.length-1]);await dbSet('sources','data',sources);currentTab='sources';render();showToast('Added '+links.length+' link(s)');}
+function showManifestModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Manifest JSON</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-hint">Paste the RAW URL of a songs.json file.<br>Host it on GitHub, Pastebin, or any public URL.</div><input type="text" class="modal-input" id="mfName" placeholder="Name (e.g. My Album)"><input type="text" class="modal-input" id="mfUrl" placeholder="https://raw.githubusercontent.com/.../songs.json"><button class="modal-btn" onclick="addManifest()">Load Manifest</button></div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function addManifest(){const name=document.getElementById('mfName').value||'Manifest';const url=document.getElementById('mfUrl').value.trim();if(!url){showToast('Please paste a URL');return;}const id='src_'+Date.now();sources.push({id,name,url,type:'manifest'});await dbSet('sources','data',sources);closeModal();showToast('Loading manifest...');await refreshManifest(sources[sources.length-1]);await dbSet('sources','data',sources);currentTab='sources';render();showToast('Manifest loaded!');}
+function showCreatePlaylistModal(){const sheet=document.getElementById('modalSheet');sheet.innerHTML=`<div class="modal-header"><div class="modal-title">New Playlist</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><input type="text" class="modal-input" id="plName" placeholder="Playlist name"><button class="modal-btn" onclick="createPlaylist(document.getElementById('plName').value);closeModal();">Create</button></div>`;document.getElementById('modal').classList.add('show');}
+function showQueueModal(){const sheet=document.getElementById('modalSheet');let html='<div class="modal-header"><div class="modal-title">Up Next</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body">';if(!queue.length){html+='<div class="empty" style="padding:20px;"><div class="empty-sub">Queue is empty</div></div>';}else{queue.forEach((song,idx)=>{html+=`<div class="modal-row ${idx===currentIndex?'now-playing':''}" onclick="closeModal();playSong(queue[${idx}],queue);"><div class="list-row-art" style="width:36px;height:36px;font-size:14px;">${song.art?`<img src="${song.art}">`:'🎵'}</div><div class="modal-row-text">${esc(song.title)}<br><small style="color:var(--text2)">${esc(song.artist)}</small></div></div>`;});}html+='</div>';sheet.innerHTML=html;document.getElementById('modal').classList.add('show');}
+function closeModal(){document.getElementById('modal').classList.remove('show');}
+
+function showCtx(e,song){e.preventDefault();const items=[{label:'Play Next',action:()=>{queue.splice(currentIndex+1,0,song);showToast('Added to queue');}},{label:'Add to Playlist',action:()=>showAddToPlaylistModal(song.id)},{label:'Go to Artist',action:()=>{const names=splitArtists(song.artist);if(names[0])showArtistSongs(names[0],songs.filter(s=>splitArtists(s.artist).includes(names[0])));}}];if(song.source==='local')items.push({label:'Delete',action:()=>deleteLocalSong(song.id),danger:true});showCtxMenu(e.clientX,e.clientY,items);}
+function showCtxMenu(x,y,items){const menu=document.getElementById('ctxMenu');menu.innerHTML=items.map(it=>`<div class="ctx-item ${it.danger?'danger':''}" onclick="this.parentElement.classList.remove('show');(${it.action.toString()})();">${esc(it.label)}</div>`).join('');menu.style.left=Math.min(x,window.innerWidth-200)+'px';menu.style.top=Math.min(y,window.innerHeight-items.length*40)+'px';menu.classList.add('show');setTimeout(()=>document.addEventListener('click',hideCtx,{once:true}),10);}
+function hideCtx(){document.getElementById('ctxMenu').classList.remove('show');}
+function showAddToPlaylistModal(songId){const names=Object.keys(playlists);if(!names.length){showToast('No playlists. Create one first.');return;}const sheet=document.getElementById('modalSheet');sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add to Playlist</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body">`+names.map(n=>`<div class="modal-row" onclick="closeModal();addToPlaylist('${songId}','${n.replace(/'/g,"\\'")}');"><div class="modal-row-icon">📋</div><div class="modal-row-text">${esc(n)}</div></div>`).join('')+`</div>`;document.getElementById('modal').classList.add('show');}
+
+async function deleteLocalSong(id){if(!confirm('Delete this song from your device?'))return;songs=songs.filter(s=>s.id!==id);const locals=(await dbGet('locals','data'))||[];await dbSet('locals','data',locals.filter(s=>s.id!==id));render();showToast('Deleted');}
+
+function readID3(file){
+  return new Promise((res)=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const buf=e.target.result;const view=new DataView(buf);let offset=0;const meta={};
+      if(view.getUint8(0)===0x49&&view.getUint8(1)===0x44&&view.getUint8(2)===0x33){
+        const major=view.getUint8(3);const flags=view.getUint8(5);
+        let size=((view.getUint8(6)&0x7F)<<21)|((view.getUint8(7)&0x7F)<<14)|((view.getUint8(8)&0x7F)<<7)|(view.getUint8(9)&0x7F);
+        offset=10;
+        if(flags&0x40){const extSize=((view.getUint8(10)&0x7F)<<21)|((view.getUint8(11)&0x7F)<<14)|((view.getUint8(12)&0x7F)<<7)|(view.getUint8(13)&0x7F);offset+=4+extSize;}
+        const encodings=['utf-8','utf-16','utf-16be','utf-8'];
+        while(offset<size+10&&offset<buf.byteLength-10){
+          const id=String.fromCharCode(view.getUint8(offset),view.getUint8(offset+1),view.getUint8(offset+2),view.getUint8(offset+3));
+          const frameSize=major===4?((view.getUint8(offset+4)&0x7F)<<21)|((view.getUint8(offset+5)&0x7F)<<14)|((view.getUint8(offset+6)&0x7F)<<7)|(view.getUint8(offset+7)&0x7F):(view.getUint32(offset+4,false));
+          const enc=view.getUint8(offset+10);const textDecoder=new TextDecoder(encodings[enc]||'utf-8');
+          const frameData=new Uint8Array(buf,offset+11,frameSize-1);const text=textDecoder.decode(frameData).replace(/\0/g,'');
+          if(id==='TIT2')meta.title=text;if(id==='TPE1')meta.artist=text;if(id==='TALB')meta.album=text;if(id==='TCON')meta.genre=text;if(id==='TYER')meta.year=text;if(id==='TDRC')meta.year=text.slice(0,4);
+          if(id==='APIC'){
+            let picOff=offset+11;const picEnc=view.getUint8(picOff);picOff++;
+            let mime='';while(view.getUint8(picOff)!==0){mime+=String.fromCharCode(view.getUint8(picOff));picOff++;}picOff++;
+            const picType=view.getUint8(picOff);picOff++;while(view.getUint8(picOff)!==0){picOff++;}picOff++;
+            const picData=new Uint8Array(buf,picOff,offset+10+frameSize-picOff);const blob=new Blob([picData],{type:mime||'image/jpeg'});meta.picture=URL.createObjectURL(blob);
+          }
+          offset+=10+frameSize;
+        }
+      }
+      res(meta);
+    };
+    reader.readAsArrayBuffer(file.slice(0,256000));
+  });
+}
+
+function esc(s){return(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+function fmtTime(s){if(!s||!isFinite(s))return'0:00';const m=Math.floor(s/60);return m+':'+String(Math.floor(s%60)).padStart(2,'0');}
+let toastTimer;
+function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove('show'),2500);}
+function showMetaToast(msg){const t=document.getElementById('metaToast');t.textContent=msg;t.classList.add('show');}
+function hideMetaToast(){document.getElementById('metaToast').classList.remove('show');}
+
+init();
+</script>
+</body>
+</html>
