@@ -49,8 +49,14 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .player-info{flex:1;min-width:0;}
 .player-title{font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
 .player-artist{font-size:11px;color:var(--text2);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
-.player-btn{background:none;border:none;color:var(--text);font-size:20px;cursor:pointer;padding:4px;display:flex;align-items:center;justify-content:center;width:36px;height:36px;}
-.player-btn.play{font-size:28px;color:var(--accent);}
+.player-btn{background:none;border:none;color:var(--text);font-size:18px;cursor:pointer;padding:0;display:flex;align-items:center;justify-content:center;width:34px;height:34px;border-radius:50%;transition:background .15s,transform .1s;}
+.player-btn:hover{background:rgba(255,255,255,.08);}
+.player-btn:active{transform:scale(.92);}
+.player-btn.play{font-size:18px;color:var(--bg);background:var(--text);width:32px;height:32px;}
+.player-btn.play:hover{background:#f2f2f7;}
+.icon-btn{display:inline-flex;align-items:center;justify-content:center;border:0;background:none;color:currentColor;cursor:pointer;}
+.player-btn svg,.full-btn svg,.full-extra-btn svg{width:22px;height:22px;stroke:currentColor;fill:none;stroke-width:2;stroke-linecap:round;stroke-linejoin:round;}
+.player-btn.play svg{width:16px;height:16px;fill:currentColor;stroke:none;}
 .full-player{position:fixed;inset:0;background:var(--bg);z-index:300;display:flex;flex-direction:column;transform:translateY(100%);transition:transform 0.35s cubic-bezier(0.32,0.72,0,1);}
 .full-player.open{transform:translateY(0);}
 .full-header{display:flex;align-items:center;justify-content:space-between;padding:calc(12px + var(--safe-top)) 20px 12px;}
@@ -66,9 +72,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .full-progress-bar::before{content:"";position:absolute;left:0;top:0;bottom:0;width:var(--prog,0%);background:var(--accent);border-radius:2px;}
 .full-time{display:flex;justify-content:space-between;font-size:11px;color:var(--text2);margin-top:4px;}
 .full-controls{display:flex;align-items:center;justify-content:center;gap:24px;padding:16px 32px 24px;}
-.full-btn{background:none;border:none;color:var(--text);font-size:24px;cursor:pointer;padding:8px;}
-.full-btn.play{width:64px;height:64px;background:var(--text);color:var(--bg);border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:28px;}
-.full-btn.shuffle.active,.full-btn.repeat.active{color:var(--accent);}
+.full-btn{background:none;border:none;color:var(--text);cursor:pointer;padding:10px;display:flex;align-items:center;justify-content:center;border-radius:50%;transition:transform .12s,background .15s;}
+.full-btn:hover{background:rgba(255,255,255,.08);}
+.full-btn:active{transform:scale(.9);}
+.full-btn.play{width:68px;height:68px;background:var(--text);color:var(--bg);border-radius:50%;font-size:28px;}
+.full-btn.play svg{width:27px;height:27px;fill:currentColor;stroke:none;}
+.full-btn.shuffle.active,.full-btn.repeat.active{color:var(--accent);}.full-btn.skip svg{width:28px;height:28px;}
 .full-extras{display:flex;justify-content:center;gap:32px;padding:8px 32px 24px;}
 .full-extra-btn{background:none;border:none;color:var(--text2);font-size:22px;cursor:pointer;padding:8px;}
 .full-extra-btn.active{color:var(--accent);}
@@ -110,7 +119,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 .ctx-item:active{background:var(--surface3);}
 .ctx-item.danger{color:#ff453a;}
 .meta-toast{position:fixed;top:calc(52px + var(--safe-top));left:50%;transform:translateX(-50%);background:rgba(250,45,72,0.9);color:#fff;padding:6px 16px;border-radius:16px;font-size:12px;z-index:120;display:none;}
-.meta-toast.show{display:block;}
+.meta-toast.show{display:block;}.edit-grid{display:grid;grid-template-columns:1fr 1fr;gap:0 12px;padding:0 20px;}.edit-grid .modal-input{width:100%;margin:8px 0;}.edit-grid .full{grid-column:1/-1;}.source-note{padding:0 20px 8px;font-size:12px;color:var(--text2);line-height:1.45;}.modal-btn.secondary{background:var(--surface3);color:var(--text);}
 #fileInput{display:none;}
 @media(min-width:1024px){
 .sidebar{position:fixed;left:0;top:0;bottom:0;width:260px;background:var(--surface);border-right:1px solid var(--divider);padding-top:var(--safe-top);z-index:300;display:flex;flex-direction:column;}
@@ -128,6 +137,7 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 @media(max-width:1023px){.sidebar{display:none;}}
 </style>
 <base target="_blank">
+<script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
 </head>
 <body>
 <div id="app">
@@ -142,9 +152,12 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 <div class="player-progress" id="miniProgress"><div class="player-progress-fill" id="miniFill"></div></div>
 <div class="player-art" id="miniArt"><div class="art-placeholder">🎵</div></div>
 <div class="player-info"><div class="player-title" id="miniTitle">Select a song</div><div class="player-artist" id="miniArtist">VS Music</div></div>
-<button class="player-btn" id="miniPrev">⏮</button>
-<button class="player-btn play" id="miniPlay">▶</button>
-<button class="player-btn" id="miniNext">⏭</button>
+<button class="player-btn" id="miniPrev" aria-label="Previous">
+<svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-8 6 8 6V6z"/></svg></button>
+<button class="player-btn play" id="miniPlay" aria-label="Play">
+<svg viewBox="0 0 24 24" class="play-icon"><path d="M8 5l11 7-11 7V5z"/></svg></button>
+<button class="player-btn" id="miniNext" aria-label="Next">
+<svg viewBox="0 0 24 24"><path d="M18 5v14M6 6l8 6-8 6V6z"/></svg></button>
 </div>
 <div class="full-player" id="fullPlayer">
 <div class="full-header"><button class="full-header-btn" id="fullDown">▼</button><span style="font-size:13px;font-weight:600;color:var(--text2);">Now Playing</span><button class="full-header-btn" id="fullQueue">☰</button></div>
@@ -152,16 +165,21 @@ html,body{height:100%;background:var(--bg);color:var(--text);font-family:-apple-
 <div class="full-info"><div class="full-title" id="fullTitle">Select a song</div><div class="full-artist" id="fullArtist">VS Music</div></div>
 <div class="full-progress"><div class="full-progress-bar" id="fullProgress"></div><div class="full-time"><span id="curTime">0:00</span><span id="durTime">0:00</span></div></div>
 <div class="full-controls">
-<button class="full-btn shuffle" id="btnShuffle">⇄</button>
-<button class="full-btn" id="btnPrev">⏮</button>
-<button class="full-btn play" id="btnPlay">▶</button>
-<button class="full-btn" id="btnNext">⏭</button>
-<button class="full-btn repeat" id="btnRepeat">🔁</button>
+<button class="full-btn shuffle" id="btnShuffle" aria-label="Shuffle">
+<svg viewBox="0 0 24 24"><path d="M16 3h5v5M4 5h3c4 0 5 9 10 9h4M16 16h5v5M4 19h3c2 0 3-1 4-3"/></svg></button>
+<button class="full-btn skip" id="btnPrev" aria-label="Previous">
+<svg viewBox="0 0 24 24"><path d="M6 5v14M18 6l-8 6 8 6V6z"/></svg></button>
+<button class="full-btn play" id="btnPlay" aria-label="Play">
+<svg viewBox="0 0 24 24" class="play-icon"><path d="M8 5l11 7-11 7V5z"/></svg></button>
+<button class="full-btn skip" id="btnNext" aria-label="Next">
+<svg viewBox="0 0 24 24"><path d="M18 5v14M6 6l8 6-8 6V6z"/></svg></button>
+<button class="full-btn repeat" id="btnRepeat" aria-label="Repeat">
+<svg viewBox="0 0 24 24"><path d="M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3"/></svg></button>
 </div>
 <div class="full-extras">
-<button class="full-extra-btn" id="btnLyrics">📝</button>
-<button class="full-extra-btn" id="btnLike">♡</button>
-<button class="full-extra-btn" id="btnAirplay">📡</button>
+<button class="full-extra-btn" id="btnLyrics" aria-label="Lyrics"><svg viewBox="0 0 24 24"><path d="M5 4h14v16H5zM8 8h8M8 12h8M8 16h5"/></svg></button>
+<button class="full-extra-btn" id="btnLike" aria-label="Like">♡</button>
+<button class="full-extra-btn" id="btnAirplay" aria-label="AirPlay"><svg viewBox="0 0 24 24"><path d="M5 5h14v9h-3M8 19l4-4 4 4M3 19h2M19 19h2"/></svg></button>
 </div>
 <div class="full-lyrics" id="lyricsPanel"></div>
 </div>
@@ -242,49 +260,97 @@ async function loadGithubSongs(){
   }
 }
 
-async function scanMissingMetadata(){
-  const needScan=songs.filter(s=>s.source==='github'&&s.artist==='Unknown Artist'&&!s._metaScanned);
+async function scanMissingMetadata(force=false){
+  const needScan=songs.filter(s=>{
+    if(s.source==='github' && !force){
+      return !s._metaScanned && (!s.artist || s.artist==='Unknown Artist' || !s.album || !s.genre || !s.year);
+    }
+    return force && ['github','gdrive','onedrive'].includes(s.source);
+  });
   if(!needScan.length)return;
   metaScanning=true;
   showMetaToast('Reading song metadata...');
   let scanned=0;
-  for(let i=0;i<needScan.length;i+=3){
-    const batch=needScan.slice(i,i+3);
+  for(let i=0;i<needScan.length;i+=2){
+    const batch=needScan.slice(i,i+2);
     await Promise.all(batch.map(async(song)=>{
       try{
         const meta=await fetchMetadata(song.url);
-        if(meta.title&&meta.title!==song.title)song.title=meta.title;
-        if(meta.artist)song.artist=meta.artist;
-        if(meta.album)song.album=meta.album;
-        if(meta.genre)song.genre=meta.genre;
-        if(meta.year)song.year=String(meta.year);
-        if(meta.picture)song.art=meta.picture;
-        song._metaScanned=true;
-        await dbSet('metadata',song.id,{title:song.title,artist:song.artist,album:song.album,genre:song.genre,year:song.year,art:song.art});
-      }catch(e){song._metaScanned=true;}
+        applyMetadata(song,meta);
+        song._metaScanned=Object.keys(meta||{}).length>0;
+        await saveSongMetadata(song);
+      }catch(e){console.warn('Metadata read failed',song.title,e);}
     }));
     scanned+=batch.length;
     showMetaToast(`Reading metadata... ${scanned}/${needScan.length}`);
-    // Re-render if user is on a metadata tab
-    if(['artists','albums','genres','years'].includes(currentSubTab)||['artist_detail','album_detail','genre_detail','year_detail'].includes(currentTab)){
-      render();
-    }
+    renderLibraryContentIfNeeded();
   }
   hideMetaToast();
   metaScanning=false;
 }
 
-async function fetchMetadata(url){
-  try{
-    const res=await fetch(url,{headers:{'Range':'bytes=0-131071'}});
-    if(!res.ok)return{};
-    const blob=await res.blob();
-    const file=new File([blob],'temp.mp3',{type:'audio/mpeg'});
-    return await readID3(file);
-  }catch(e){return{};}
+function renderLibraryContentIfNeeded(){
+  if(['artists','albums','genres','years'].includes(currentSubTab) ||
+     ['artist_detail','album_detail','genre_detail','year_detail'].includes(currentTab)) render();
 }
 
-async function refreshAllSources(){for(const src of sources){try{if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='manifest')await refreshManifest(src);}catch(e){}}}
+function applyMetadata(song,meta){
+  if(!meta)return;
+  if(meta.title)song.title=meta.title;
+  if(meta.artist)song.artist=meta.artist;
+  if(meta.album)song.album=meta.album;
+  if(meta.genre)song.genre=meta.genre;
+  if(meta.year)song.year=String(meta.year).slice(0,4);
+  if(meta.picture)song.art=meta.picture;
+  if(meta.track)song.track=String(meta.track);
+  if(meta.disc)song.disc=String(meta.disc);
+}
+
+async function saveSongMetadata(song){
+  const data={title:song.title,artist:song.artist,album:song.album,genre:song.genre,year:song.year,art:song.art,track:song.track,disc:song.disc,_metaScanned:song._metaScanned};
+  await dbSet('metadata',song.id,data);
+  if(song.source==='local'){
+    const locals=(await dbGet('locals','data'))||[];
+    const idx=locals.findIndex(x=>x.id===song.id);
+    if(idx>=0){locals[idx]={...locals[idx],...data};await dbSet('locals','data',locals);}
+  }
+}
+
+function fetchMetadata(urlOrFile){
+  return new Promise((resolve,reject)=>{
+    if(!window.jsmediatags){reject(new Error('Metadata library failed to load'));return;}
+    jsmediatags.read(urlOrFile,{
+      onSuccess:tag=>{
+        const t=tag.tags||{};
+        const picture=t.picture;
+        let art='';
+        if(picture && picture.data){
+          const bytes=new Uint8Array(picture.data);
+          const blob=new Blob([bytes],{type:picture.format||'image/jpeg'});
+          art=URL.createObjectURL(blob);
+        }
+        resolve({
+          title:cleanTag(t.title),
+          artist:cleanTag(t.artist),
+          album:cleanTag(t.album),
+          genre:cleanTag(t.genre),
+          year:cleanTag(t.year||t.date),
+          track:cleanTag(t.track),
+          disc:cleanTag(t.disc),
+          picture:art
+        });
+      },
+      onError:reject
+    });
+  });
+}
+function cleanTag(v){
+  if(v===undefined||v===null)return '';
+  if(typeof v==='object')return String(v.text||v.no||'').trim();
+  return String(v).replace(/\0/g,'').trim();
+}
+
+async function refreshAllSources(){for(const src of sources){try{if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='gdrive_folder')await refreshGDriveFolder(src);else if(src.type==='manifest')await refreshManifest(src);}catch(e){}}}
 
 async function refreshOneDrive(src){
   songs=songs.filter(s=>s.sourceId!==src.id);
@@ -302,8 +368,67 @@ async function refreshGDriveLinks(src){
   for(const link of src.links||[]){
     const id=extractGDriveId(link);if(!id)continue;
     const url=`https://drive.google.com/uc?export=download&id=${id}`;
-    songs.push({id:'gd_'+id,title:'Drive Song',artist:'Unknown Artist',album:'',genre:'',year:'',url,source:'gdrive',sourceId:src.id,art:'',duration:0});
+    songs.push({id:'gd_'+id,title:'Drive Song',artist:'Unknown Artist',album:'',genre:'',year:'',url,source:'gdrive',sourceId:src.id,art:'',duration:0,_metaScanned:false});
   }
+  await scanSourceMetadata(src.id);
+}
+
+async function refreshGDriveFolder(src){
+  if(!src.apiKey){showToast('Google Drive API key is missing');return;}
+  const folderId=extractGDriveId(src.url||src.folderUrl);
+  if(!folderId){showToast('Invalid Google Drive folder link');return;}
+  songs=songs.filter(s=>s.sourceId!==src.id);
+  showMetaToast('Loading Google Drive folder...');
+  let pageToken='';
+  let total=0;
+  try{
+    do{
+      const params=new URLSearchParams({
+        q:`'${folderId}' in parents and trashed=false`,
+        pageSize:'1000',
+        fields:'nextPageToken,files(id,name,mimeType,webContentLink,resourceKey)',
+        key:src.apiKey
+      });
+      if(pageToken)params.set('pageToken',pageToken);
+      const res=await fetch(`https://www.googleapis.com/drive/v3/files?${params}`);
+      if(!res.ok)throw new Error('Drive API '+res.status);
+      const data=await res.json();
+      for(const f of (data.files||[])){
+        if(!isAudioFile(f.name,f.mimeType))continue;
+        const url=`https://drive.google.com/uc?export=download&id=${f.id}`;
+        songs.push({
+          id:'gdf_'+f.id,title:f.name.replace(/\.[^.]+$/,''),
+          artist:'Unknown Artist',album:'',genre:'',year:'',url,
+          source:'gdrive',sourceId:src.id,driveId:f.id,art:'',duration:0,_metaScanned:false
+        });
+        total++;
+      }
+      pageToken=data.nextPageToken||'';
+      showMetaToast(`Loading Google Drive folder... ${total} songs`);
+    }while(pageToken);
+    hideMetaToast();
+    await scanSourceMetadata(src.id);
+  }catch(e){
+    hideMetaToast();
+    console.error(e);
+    showToast('Could not read Google Drive folder. Check API key and sharing.');
+  }
+}
+
+function isAudioFile(name,mime=''){
+  return /^audio\//i.test(mime)||/\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i.test(name||'');
+}
+async function scanSourceMetadata(sourceId){
+  const list=songs.filter(s=>s.sourceId===sourceId);
+  if(!list.length)return;
+  metaScanning=true;showMetaToast('Reading song metadata...');
+  for(let i=0;i<list.length;i++){
+    const song=list[i];
+    try{const meta=await fetchMetadata(song.url);applyMetadata(song,meta);song._metaScanned=Object.keys(meta||{}).length>0;await saveSongMetadata(song);}
+    catch(e){console.warn('Metadata read failed',song.title,e);}
+    if(i%2===1||i===list.length-1){showMetaToast(`Reading metadata... ${i+1}/${list.length}`);renderLibraryContentIfNeeded();}
+  }
+  hideMetaToast();metaScanning=false;
 }
 
 async function refreshManifest(src){
@@ -441,8 +566,8 @@ function renderSources(){
   if(!sources.length){content.innerHTML=`<div class="empty"><div class="empty-icon">☁️</div><div class="empty-title">No Sources</div><div class="empty-sub">Tap + to connect your cloud storage</div></div>`;return;}
   sources.forEach((src,idx)=>{
     const row=document.createElement('div');row.className='list-row';
-    const icon=src.type==='onedrive_folder'?'☁️':src.type==='gdrive_links'?'📁':src.type==='manifest'?'📄':'🔗';
-    const label=src.type==='onedrive_folder'?'OneDrive Folder':src.type==='gdrive_links'?'Google Drive Links':src.type==='manifest'?'Manifest':'Link';
+    const icon=src.type==='onedrive_folder'?'☁️':src.type==='gdrive_links'?'📄':src.type==='gdrive_folder'?'📂':src.type==='manifest'?'📄':'🔗';
+    const label=src.type==='onedrive_folder'?'OneDrive Folder':src.type==='gdrive_links'?'Google Drive Links':src.type==='gdrive_folder'?'Google Drive Folder':src.type==='manifest'?'Manifest':'Link';
     const count=songs.filter(s=>s.sourceId===src.id).length;
     row.innerHTML=`<div class="list-row-art"><div class="art-placeholder">${icon}</div></div><div class="list-row-info"><div class="list-row-title">${esc(src.name||label)}</div><div class="list-row-sub">${count} songs • ${label}</div></div><button class="header-btn" style="margin:0;" onclick="event.stopPropagation();refreshSource(${idx})">🔄</button><button class="header-btn" style="margin:0;margin-left:4px;background:var(--surface3);" onclick="event.stopPropagation();removeSource(${idx})">🗑</button>`;
     row.onclick=()=>showSourceSongs(src);
@@ -451,7 +576,7 @@ function renderSources(){
 }
 function showSourceSongs(src){historyStack.push({tab:currentTab});currentTab='source_detail';document.getElementById('pageTitle').textContent=esc(src.name||'Source');document.getElementById('tabs').innerHTML='';const content=document.getElementById('content');const list=songs.filter(s=>s.sourceId===src.id);content.innerHTML='';renderSongsList(content,list,'No songs in this source');}
 
-async function refreshSource(idx){const src=sources[idx];showToast('Refreshing...');if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='manifest')await refreshManifest(src);await dbSet('sources','data',sources);render();showToast('Refreshed');}
+async function refreshSource(idx){const src=sources[idx];showToast('Refreshing...');if(src.type==='onedrive_folder')await refreshOneDrive(src);else if(src.type==='gdrive_links')await refreshGDriveLinks(src);else if(src.type==='gdrive_folder')await refreshGDriveFolder(src);else if(src.type==='manifest')await refreshManifest(src);await dbSet('sources','data',sources);render();showToast('Refreshed');}
 async function removeSource(idx){if(!confirm('Remove this source? Songs will be deleted from library.'))return;const src=sources[idx];songs=songs.filter(s=>s.sourceId!==src.id);sources.splice(idx,1);await dbSet('sources','data',sources);render();showToast('Source removed');}
 
 function renderPlaylists(){
@@ -481,6 +606,15 @@ function renderSearch(){
   const results=songs.filter(s=>(s.title||'').toLowerCase().includes(q)||(s.artist||'').toLowerCase().includes(q)||(s.album||'').toLowerCase().includes(q)||(s.genre||'').toLowerCase().includes(q)||(s.year||'').toLowerCase().includes(q));
   renderSongsList(content,results,'No results for "'+esc(searchQuery)+'"');
 }
+
+document.addEventListener('keydown',e=>{
+  if(e.target.matches('input,textarea'))return;
+  if(e.code==='Space'){e.preventDefault();togglePlay();}
+  else if(e.code==='ArrowRight' && audio.duration){audio.currentTime=Math.min(audio.duration,audio.currentTime+10);}
+  else if(e.code==='ArrowLeft' && audio.duration){audio.currentTime=Math.max(0,audio.currentTime-10);}
+  else if(e.code==='MediaTrackNext')nextSong();
+  else if(e.code==='MediaTrackPrevious')prevSong();
+});
 
 function setupAudio(){
   audio.addEventListener('timeupdate',updateProgress);
@@ -517,7 +651,17 @@ function updatePlayerUI(song){
   renderLyrics(song.lyrics||'');updateMediaSession(song);
 }
 function togglePlay(){if(!audio.src)return;if(isPlaying){audio.pause();}else{audio.play().catch(()=>{});}}
-function updatePlayBtn(){const icon=isPlaying?'⏸':'▶';document.getElementById('miniPlay').textContent=icon;document.getElementById('btnPlay').textContent=icon;}
+function setPlayIcon(el,playing){
+  const svg=el.querySelector('svg');
+  if(!svg)return;
+  svg.innerHTML=playing
+    ? '<rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/>'
+    : '<path d="M8 5l11 7-11 7V5z"/>';
+}
+function updatePlayBtn(){
+  setPlayIcon(document.getElementById('miniPlay'),isPlaying);
+  setPlayIcon(document.getElementById('btnPlay'),isPlaying);
+}
 function nextSong(){if(!queue.length)return;if(isShuffled)playRandom();else{currentIndex=(currentIndex+1)%queue.length;playSong(queue[currentIndex],queue);}}
 function prevSong(){if(!queue.length)return;if(audio.currentTime>3){audio.currentTime=0;return;}if(isShuffled)playRandom();else{currentIndex=(currentIndex-1+queue.length)%queue.length;playSong(queue[currentIndex],queue);}}
 function playRandom(){if(queue.length<=1)return;let next;do{next=Math.floor(Math.random()*queue.length);}while(next===currentIndex&&queue.length>1);currentIndex=next;playSong(queue[currentIndex],queue);}
@@ -535,7 +679,7 @@ function setupEvents(){
   document.getElementById('miniPlay').onclick=togglePlay;document.getElementById('miniNext').onclick=nextSong;document.getElementById('miniPrev').onclick=prevSong;
   document.getElementById('btnPlay').onclick=togglePlay;document.getElementById('btnNext').onclick=nextSong;document.getElementById('btnPrev').onclick=prevSong;
   document.getElementById('btnShuffle').onclick=function(){isShuffled=!isShuffled;this.classList.toggle('active',isShuffled);showToast(isShuffled?'Shuffle On':'Shuffle Off');};
-  document.getElementById('btnRepeat').onclick=function(){repeatMode=(repeatMode+1)%3;this.classList.toggle('active',repeatMode>0);this.textContent=repeatMode===2?'🔂':'🔁';showToast(['Repeat Off','Repeat All','Repeat One'][repeatMode]);};
+  document.getElementById('btnRepeat').onclick=function(){repeatMode=(repeatMode+1)%3;this.classList.toggle('active',repeatMode>0);showToast(['Repeat Off','Repeat All','Repeat One'][repeatMode]);};
   document.getElementById('miniTitle').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
   document.getElementById('miniArtist').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
   document.getElementById('miniArt').onclick=()=>document.getElementById('fullPlayer').classList.add('open');
@@ -579,7 +723,8 @@ function showAddModal(){
 }
 function showSourceModal(){
   const sheet=document.getElementById('modalSheet');
-  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add Cloud Source</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-row" onclick="closeModal();showOneDriveModal();"><div class="modal-row-icon">☁️</div><div class="modal-row-text">OneDrive Folder</div></div><div class="modal-row" onclick="closeModal();showGDriveModal();"><div class="modal-row-icon">📁</div><div class="modal-row-text">Google Drive Links</div></div><div class="modal-row" onclick="closeModal();showManifestModal();"><div class="modal-row-icon">📄</div><div class="modal-row-text">Manifest JSON</div></div></div>`;
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add Cloud Source</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-row" onclick="closeModal();showOneDriveModal();"><div class="modal-row-icon">☁️</div><div class="modal-row-text">OneDrive Folder</div></div><div class="modal-row" onclick="closeModal();showGDriveModal();"><div class="modal-row-icon">📄</div><div class="modal-row-text">Google Drive Links</div></div>
+<div class="modal-row" onclick="closeModal();showGDriveFolderModal();"><div class="modal-row-icon">📂</div><div class="modal-row-text">Google Drive Folder</div></div><div class="modal-row" onclick="closeModal();showManifestModal();"><div class="modal-row-icon">📄</div><div class="modal-row-text">Manifest JSON</div></div></div>`;
   document.getElementById('modal').classList.add('show');
 }
 function showOneDriveModal(){
@@ -594,6 +739,33 @@ function showGDriveModal(){
   document.getElementById('modal').classList.add('show');
 }
 async function addGDrive(){const name=document.getElementById('gdName').value||'Google Drive';const text=document.getElementById('gdUrls').value.trim();if(!text){showToast('Please paste links');return;}const links=text.split('\n').map(l=>l.trim()).filter(l=>l);const id='src_'+Date.now();sources.push({id,name,links,type:'gdrive_links'});await dbSet('sources','data',sources);closeModal();showToast('Adding links...');await refreshGDriveLinks(sources[sources.length-1]);await dbSet('sources','data',sources);currentTab='sources';render();showToast('Added '+links.length+' link(s)');}
+function showGDriveFolderModal(){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Google Drive Folder</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="modal-hint">Add an entire Google Drive music folder in one click. The folder must be accessible to the API key. For a public/shared folder, enable the Google Drive API and create a browser API key in Google Cloud.</div>
+    <input type="text" class="modal-input" id="gdfName" placeholder="Name (e.g. My Drive Music)">
+    <input type="text" class="modal-input" id="gdfUrl" placeholder="https://drive.google.com/drive/folders/FOLDER_ID">
+    <input type="password" class="modal-input" id="gdfKey" placeholder="Google Drive API key">
+    <div class="source-note">The API key is stored only in this browser's IndexedDB. Do not use a privileged server-side key here. Restrict the key to the Drive API and your website origin.</div>
+    <button class="modal-btn" onclick="addGDriveFolder()">Add Entire Folder</button>
+  </div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function addGDriveFolder(){
+  const name=document.getElementById('gdfName').value.trim()||'Google Drive Folder';
+  const url=document.getElementById('gdfUrl').value.trim();
+  const apiKey=document.getElementById('gdfKey').value.trim();
+  if(!url||!apiKey){showToast('Folder link and API key are required');return;}
+  const id='src_'+Date.now();
+  const src={id,name,url,apiKey,type:'gdrive_folder'};
+  sources.push(src);await dbSet('sources','data',sources);
+  closeModal();showToast('Loading Google Drive folder...');
+  await refreshGDriveFolder(src);await dbSet('sources','data',sources);
+  currentTab='sources';render();
+  showToast(`Folder added: ${songs.filter(s=>s.sourceId===id).length} songs`);
+}
+
 function showManifestModal(){
   const sheet=document.getElementById('modalSheet');
   sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Manifest JSON</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="modal-hint">Paste the RAW URL of a songs.json file.<br>Host it on GitHub, Pastebin, or any public URL.</div><input type="text" class="modal-input" id="mfName" placeholder="Name (e.g. My Album)"><input type="text" class="modal-input" id="mfUrl" placeholder="https://raw.githubusercontent.com/.../songs.json"><button class="modal-btn" onclick="addManifest()">Load Manifest</button></div>`;
@@ -604,9 +776,61 @@ function showCreatePlaylistModal(){const sheet=document.getElementById('modalShe
 function showQueueModal(){const sheet=document.getElementById('modalSheet');let html='<div class="modal-header"><div class="modal-title">Up Next</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body">';if(!queue.length){html+='<div class="empty" style="padding:20px;"><div class="empty-sub">Queue is empty</div></div>';}else{queue.forEach((song,idx)=>{html+=`<div class="modal-row ${idx===currentIndex?'now-playing':''}" onclick="closeModal();playSong(queue[${idx}],queue);"><div class="list-row-art" style="width:36px;height:36px;font-size:14px;">${song.art?`<img src="${song.art}">`:'🎵'}</div><div class="modal-row-text">${esc(song.title)}<br><small style="color:var(--text2)">${esc(song.artist)}</small></div></div>`;});}html+='</div>';sheet.innerHTML=html;document.getElementById('modal').classList.add('show');}
 function closeModal(){document.getElementById('modal').classList.remove('show');}
 
-function showCtx(e,song){e.preventDefault();const items=[{label:'Play Next',action:()=>{queue.splice(currentIndex+1,0,song);showToast('Added to queue');}},{label:'Add to Playlist',action:()=>showAddToPlaylistModal(song.id)},{label:'Go to Artist',action:()=>{const names=splitArtists(song.artist);if(names[0])showArtistSongs(names[0],songs.filter(s=>splitArtists(s.artist).includes(names[0])));}}];if(song.source==='local')items.push({label:'Delete',action:()=>deleteLocalSong(song.id),danger:true});showCtxMenu(e.clientX,e.clientY,items);}
-function showCtxMenu(x,y,items){const menu=document.getElementById('ctxMenu');menu.innerHTML=items.map(it=>`<div class="ctx-item ${it.danger?'danger':''}" onclick="this.parentElement.classList.remove('show');(${it.action.toString()})();">${esc(it.label)}</div>`).join('');menu.style.left=Math.min(x,window.innerWidth-200)+'px';menu.style.top=Math.min(y,window.innerHeight-items.length*40)+'px';menu.classList.add('show');setTimeout(()=>document.addEventListener('click',hideCtx,{once:true}),10);}
+let ctxActions=[];
+function showCtx(e,song){
+  e.preventDefault();
+  const items=[
+    {label:'Edit Details',action:()=>showEditMetadataModal(song)},
+    {label:'Refresh Metadata',action:async()=>{showToast('Reading metadata...');try{const meta=await fetchMetadata(song.url);applyMetadata(song,meta);song._metaScanned=true;await saveSongMetadata(song);render();showToast('Metadata updated');}catch(err){showToast('Could not read metadata');}}},
+    {label:'Play Next',action:()=>{if(currentIndex<0)queue.push(song);else queue.splice(currentIndex+1,0,song);showToast('Added to queue');}},
+    {label:'Add to Playlist',action:()=>showAddToPlaylistModal(song.id)},
+    {label:'Go to Artist',action:()=>{const names=splitArtists(song.artist);if(names[0])showArtistSongs(names[0],songs.filter(s=>splitArtists(s.artist).includes(names[0])));}}
+  ];
+  if(song.source==='local')items.push({label:'Delete',action:()=>deleteLocalSong(song.id),danger:true});
+  showCtxMenu(e.clientX,e.clientY,items);
+}
+function showCtxMenu(x,y,items){
+  const menu=document.getElementById('ctxMenu');
+  ctxActions=items.map(it=>it.action);
+  menu.innerHTML=items.map((it,i)=>`<div class="ctx-item ${it.danger?'danger':''}" data-action-index="${i}">${esc(it.label)}</div>`).join('');
+  menu.style.left=Math.min(x,window.innerWidth-210)+'px';
+  menu.style.top=Math.min(y,window.innerHeight-items.length*44)+'px';
+  menu.classList.add('show');
+  menu.querySelectorAll('.ctx-item').forEach(el=>el.onclick=async()=>{const fn=ctxActions[Number(el.dataset.actionIndex)];menu.classList.remove('show');if(fn)await fn();});
+  setTimeout(()=>document.addEventListener('click',hideCtx,{once:true}),10);
+}
 function hideCtx(){document.getElementById('ctxMenu').classList.remove('show');}
+
+async function showEditMetadataModal(song){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Edit Song Details</div><button class="modal-close" onclick="closeModal()">✕</button></div>
+  <div class="modal-body">
+    <div class="source-note">Changes are saved to this music player's library. For GitHub/Google Drive songs, this does not rewrite the original audio file's embedded tags.</div>
+    <div class="edit-grid">
+      <input class="modal-input full" id="editTitle" value="${esc(song.title)}" placeholder="Song title">
+      <input class="modal-input" id="editArtist" value="${esc(song.artist)}" placeholder="Artist">
+      <input class="modal-input" id="editAlbum" value="${esc(song.album)}" placeholder="Album">
+      <input class="modal-input" id="editGenre" value="${esc(song.genre)}" placeholder="Genre">
+      <input class="modal-input" id="editYear" value="${esc(song.year)}" placeholder="Year">
+      <input class="modal-input" id="editTrack" value="${esc(song.track||'')}" placeholder="Track">
+    </div>
+    <button class="modal-btn" onclick="saveEditedMetadata('${song.id}')">Save Details</button>
+  </div>`;
+  document.getElementById('modal').classList.add('show');
+}
+async function saveEditedMetadata(songId){
+  const song=songs.find(s=>s.id===songId);if(!song)return;
+  song.title=document.getElementById('editTitle').value.trim()||song.title;
+  song.artist=document.getElementById('editArtist').value.trim()||'Unknown Artist';
+  song.album=document.getElementById('editAlbum').value.trim();
+  song.genre=document.getElementById('editGenre').value.trim();
+  song.year=document.getElementById('editYear').value.trim();
+  song.track=document.getElementById('editTrack').value.trim();
+  song._metaScanned=true;
+  await saveSongMetadata(song);
+  closeModal();render();showToast('Song details saved');
+}
+
 function showAddToPlaylistModal(songId){const names=Object.keys(playlists);if(!names.length){showToast('No playlists. Create one first.');return;}const sheet=document.getElementById('modalSheet');sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Add to Playlist</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body">`+names.map(n=>`<div class="modal-row" onclick="closeModal();addToPlaylist('${songId}','${n.replace(/'/g,"\\'")}');"><div class="modal-row-icon">📋</div><div class="modal-row-text">${esc(n)}</div></div>`).join('')+`</div>`;document.getElementById('modal').classList.add('show');}
 
 async function deleteLocalSong(id){if(!confirm('Delete this song from your device?'))return;songs=songs.filter(s=>s.id!==id);const locals=(await dbGet('locals','data'))||[];await dbSet('locals','data',locals.filter(s=>s.id!==id));render();showToast('Deleted');}
