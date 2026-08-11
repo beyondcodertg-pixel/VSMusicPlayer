@@ -1,5 +1,42 @@
 {
   "version": 2,
-  "updatedAt": "2026-08-11T14:14:12Z",
-  "songs": {}
+  "updatedAt": "2026-08-11T14:22:47Z",
+  "songs": {
+    "Songs/Bombay Sheher Haadson Ka.mp3": {
+      "title": "Bombay Shaher Haadson Ka",
+      "artist": "Amit Kumar",
+      "album": "The Greatest Driving Classics",
+      "albumArtist": "Various Artists",
+      "genre": "Bollywood Classic",
+      "year": "2008",
+      "track": "4/13",
+      "disc": "1/2",
+      "art": "",
+      "source": "embedded",
+      "confidence": "medium",
+      "needsReview": false,
+      "musicbrainzRecordingId": "",
+      "musicbrainzReleaseId": "",
+      "processorVersion": "2.0",
+      "fileSha256": "2b735842528efe78c0659dc2c57c40fbc4a34edb69bf6f555a887e58e6d1a55a"
+    },
+    "Songs/Chalte Chalen Lehron Ke Saath.mp3": {
+      "title": "Chalte Chalen Lehron Ke Saath",
+      "artist": "Kishore Kumar",
+      "album": "Saaheb",
+      "albumArtist": "Bappi Lahiri & Anjaan",
+      "genre": "Bollywood Classic",
+      "year": "2021",
+      "track": "2/6",
+      "disc": "1/1",
+      "art": "",
+      "source": "embedded",
+      "confidence": "medium",
+      "needsReview": false,
+      "musicbrainzRecordingId": "",
+      "musicbrainzReleaseId": "",
+      "processorVersion": "2.0",
+      "fileSha256": "16c1117569636e3ad8051478281396b92b90e3eb74f14835dbf8e9785d982fc8"
+    }
+  }
 }
