@@ -1,0 +1,57 @@
+name: Update Music Metadata
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'Songs/**'
+      - 'scripts/update_metadata.py'
+      - '.github/workflows/update-metadata.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: music-metadata
+  cancel-in-progress: false
+
+jobs:
+  metadata:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Install audio tools
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libchromaprint-tools ffmpeg
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Install Python packages
+        run: pip install mutagen
+
+      - name: Prepare artwork folder
+        run: mkdir -p Artwork
+
+      - name: Update tags and metadata.json
+        env:
+          ACOUSTID_CLIENT: ${{ secrets.ACOUSTID_CLIENT }}
+        run: python scripts/update_metadata.py
+
+      - name: Commit changed metadata and tags
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add Songs metadata.json Artwork
+          if git diff --cached --quiet; then
+            echo 'No metadata changes to commit.'
+            exit 0
+          fi
+          git commit -m 'Auto-update music metadata and tags'
+          git push
