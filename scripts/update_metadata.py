@@ -19,7 +19,7 @@ ART_DIR = REPO_ROOT / 'Artwork'
 ACOUSTID_CLIENT = os.environ.get('ACOUSTID_CLIENT', '').strip()
 USER_AGENT = 'VSMusicPlayer/2.0 (personal music library; GitHub Actions)'
 AUDIO_EXTS = {'.mp3','.flac','.m4a','.mp4','.ogg','.opus','.wav','.aac'}
-PROCESSOR_VERSION = '2.0'
+PROCESSOR_VERSION = '3.0'
 
 
 def http_json(url, params=None, headers=None, delay=1.05):
@@ -124,7 +124,7 @@ def acoustid_lookup(duration, fingerprint):
 
 def musicbrainz_recording(mbid):
     if not mbid: return {}
-    return http_json(f'https://musicbrainz.org/ws/2/recording/{mbid}',{'fmt':'json','inc':'releases+artists+release-groups'},delay=1.05)
+    return http_json(f'https://musicbrainz.org/ws/2/recording/{mbid}',{'fmt':'json','inc':'releases+artists+artist-credits+genres'},delay=1.05)
 
 
 def choose_release(releases):
@@ -221,6 +221,41 @@ def file_sha256(path):
     return h.hexdigest()
 
 
+def extract_artist_credits(mb, fallback=''):
+    credits=[]
+    for nc in (mb.get('artist-credit') or []):
+        artist=nc.get('artist') if isinstance(nc,dict) else None
+        if not isinstance(artist,dict):
+            continue
+        name=clean(nc.get('name') or artist.get('name'))
+        mbid=clean(artist.get('id'))
+        join=clean(nc.get('joinphrase'))
+        if name and name.lower() not in {'chorus','remix','unknown','unknown artist','various artists','various artist'}:
+            credits.append({'name':name,'mbid':mbid,'joinPhrase':join})
+    if credits:
+        return credits
+    # Fallback for embedded/acoustid text when MusicBrainz artist-credit is unavailable.
+    parts=re.split(r'\s+with\s+|\s*&\s*|\s+feat\.?\s+|\s+ft\.?\s+|\s+featuring\s+|,\s*', clean(fallback), flags=re.I)
+    return [{'name':x.strip(),'mbid':'','joinPhrase':''} for x in parts if x.strip() and x.strip().lower() not in {'chorus','remix','unknown','unknown artist'}]
+
+
+def artist_credit_text(credits, fallback=''):
+    if not credits:
+        return clean(fallback)
+    out=''
+    for i,c in enumerate(credits):
+        out += c.get('name','')
+        if i < len(credits)-1:
+            out += c.get('joinPhrase') or ' & '
+    return out.strip()
+
+
+def clean_artist_text(value):
+    v=clean(value)
+    if v.lower() in {'chorus','remix','unknown','unknown artist','various artists','various artist'}:
+        return ''
+    return v
+
 def process(path, metadata):
     rel=str(path.relative_to(REPO_ROOT)).replace('\\','/')
     original_sha=file_sha256(path)
@@ -228,52 +263,95 @@ def process(path, metadata):
     if previous and previous.get('processorVersion')==PROCESSOR_VERSION and previous.get('fileSha256')==original_sha:
         print('  unchanged - skipping')
         return
+
     tags=read_tags(path)
     meta={k:v for k,v in tags.items() if not k.startswith('_') and v}
+    meta['artist']=clean_artist_text(meta.get('artist',''))
     source='embedded'
     confidence='medium' if score_tags(tags)>=0.8 else 'low'
     needs_review=score_tags(tags)<0.8
-    mbid=''; release_id=''; score=0
-    # Fingerprint every new/changed file when AcoustID is configured. This lets the workflow correct bad embedded tags instead of merely trusting them.
+    mbid=''; release_id=''; score=0; artist_credits=[]
+    cover=None
+
+    # Prefer fingerprint identification. This is the authoritative correction path.
     if ACOUSTID_CLIENT:
         try:
             duration,fingerprint=fpcalc(path)
             hit=acoustid_lookup(duration,fingerprint)
             if hit:
-                mbid=hit.get('recording_id',''); release_id=hit.get('release_id',''); score=hit.get('score',0)
+                mbid=hit.get('recording_id',''); release_id=hit.get('release_id',''); score=float(hit.get('score',0) or 0)
                 mb=musicbrainz_recording(mbid)
                 releases=mb.get('releases') or []
-                rel=choose_release(releases)
+                rel_release=choose_release(releases)
+                artist_credits=extract_artist_credits(mb, hit.get('artist',''))
+
                 meta['title']=mb.get('title') or hit.get('title') or meta.get('title','')
-                ac=[a.get('name') for a in (mb.get('artist-credit') or []) if isinstance(a,dict) and a.get('name')]
-                meta['artist']=', '.join(ac) or hit.get('artist') or meta.get('artist','')
-                if rel:
-                    meta['album']=rel.get('title') or hit.get('album') or meta.get('album','')
-                    meta['release_id']=rel.get('id','')
-                    release_id=rel.get('id','') or release_id
-                    meta['year']=(rel.get('date') or '')[:4]
-                    media=rel.get('media') or []
-                    tracks=media[0].get('track-count') if media else None
-                source='acoustid+musicbrainz'; confidence='high' if score>=0.9 else 'medium'; needs_review=score<0.9
-                if rel:
+                credit_text=artist_credit_text(artist_credits, hit.get('artist',''))
+                meta['artist']=clean_artist_text(credit_text) or clean_artist_text(hit.get('artist','')) or meta.get('artist','')
+                # Preserve embedded album artist when available; otherwise use the first credited artist.
+                meta['albumArtist']=clean_artist_text(meta.get('albumArtist','')) or (artist_credits[0]['name'] if artist_credits else meta.get('artist',''))
+                if rel_release:
+                    meta['album']=rel_release.get('title') or hit.get('album') or meta.get('album','')
+                    meta['release_id']=rel_release.get('id','')
+                    release_id=rel_release.get('id','') or release_id
+                    # Use the earliest official release selected by choose_release.
+                    meta['year']=(rel_release.get('date') or '')[:4]
+                    if not meta.get('year'):
+                        meta['year']=(mb.get('first-release-date') or '')[:4]
+                    media=rel_release.get('media') or []
+                    if media and media[0].get('tracks'):
+                        # Find matching recording in the release media when possible.
+                        for tr in media[0].get('tracks') or []:
+                            if tr.get('recording',{}).get('id')==mbid:
+                                pos=tr.get('position')
+                                if pos: meta['track']=str(pos)
+                                break
                     try:
                         cover=cover_for_release(release_id)
                         if cover:
                             meta['art']=save_art(path,*cover)
                             meta['_cover']=cover
-                    except Exception as e: print('WARN cover',rel.get('id'),e)
-                meta['musicbrainzRecordingId']=mbid; meta['musicbrainzReleaseId']=release_id
+                    except Exception as e:
+                        print('WARN cover',release_id,e)
+
+                # Use MusicBrainz genres when embedded genre is missing.
+                if not meta.get('genre'):
+                    genres=[clean(g.get('name')) for g in (mb.get('genres') or []) if isinstance(g,dict) and g.get('name')]
+                    if genres: meta['genre']='; '.join(genres[:3])
+
+                meta['musicbrainzRecordingId']=mbid
+                meta['musicbrainzReleaseId']=release_id
+                source='acoustid+musicbrainz'
+                confidence='high' if score>=0.9 else 'medium'
+                needs_review=score<0.9
         except Exception as e:
             print(f'WARN fingerprint {rel}: {e}')
-    # Normalize filename fallback.
+
+    # If fingerprinting did not provide credits, derive separate artists from the embedded credit.
+    if not artist_credits:
+        artist_credits=extract_artist_credits({}, meta.get('artist',''))
+
     if not meta.get('title'): meta['title']=path.stem
     if not meta.get('artist'): meta['artist']='Unknown Artist'
-    meta.setdefault('album',''); meta.setdefault('albumArtist',meta.get('artist','')); meta.setdefault('genre',''); meta.setdefault('year',''); meta.setdefault('track',''); meta.setdefault('disc','')
+    meta.setdefault('album','')
+    meta.setdefault('albumArtist',meta.get('artist',''))
+    meta.setdefault('genre','')
+    meta.setdefault('year','')
+    meta.setdefault('track','')
+    meta.setdefault('disc','')
+
+    # A year is considered valid only when it is a real 4-digit year.
+    if not re.fullmatch(r'\d{4}', str(meta.get('year',''))[:4]):
+        meta['year']=''
+        needs_review=True
+
     cover=meta.pop('_cover',None)
     write_tags(path,meta,cover=cover)
     entry={
-        'title':meta['title'],'artist':meta['artist'],'album':meta.get('album',''),'albumArtist':meta.get('albumArtist',''),
-        'genre':meta.get('genre',''),'year':str(meta.get('year',''))[:4],'track':str(meta.get('track','')),'disc':str(meta.get('disc','')),
+        'title':meta['title'],'artist':meta['artist'],'artistCredits':artist_credits,
+        'album':meta.get('album',''),'albumArtist':meta.get('albumArtist',''),
+        'genre':meta.get('genre',''),'year':str(meta.get('year',''))[:4],
+        'track':str(meta.get('track','')),'disc':str(meta.get('disc','')),
         'art':meta.get('art',''),'source':source,'confidence':confidence,'needsReview':bool(needs_review),
         'musicbrainzRecordingId':meta.get('musicbrainzRecordingId',''),'musicbrainzReleaseId':meta.get('musicbrainzReleaseId',''),
         'processorVersion':PROCESSOR_VERSION,'fileSha256':file_sha256(path)
