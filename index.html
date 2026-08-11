@@ -880,6 +880,268 @@ function showToast(msg){const t=document.getElementById('toast');t.textContent=m
 function showMetaToast(msg){const t=document.getElementById('metaToast');t.textContent=msg;t.classList.add('show');}
 function hideMetaToast(){document.getElementById('metaToast').classList.remove('show');}
 
+/* VS Music upgrade layer - shared metadata + true offline local storage */
+const VSM_VERSION = '2.0.0';
+const VSM_META_URL = 'https://raw.githubusercontent.com/beyondcodertg-pixel/VSMusicPlayer/main/metadata.json';
+const VSM_RAW_BASE = 'https://raw.githubusercontent.com/beyondcodertg-pixel/VSMusicPlayer/main/';
+let vsmMeta = {version:1,songs:{}};
+const vsmObjectUrls = new Set();
+
+function vsmHash(s){let h=2166136261;for(let i=0;i<s.length;i++){h^=s.charCodeAt(i);h=Math.imul(h,16777619);}return (h>>>0).toString(36);}
+function vsmSongId(path){return 'gh_'+vsmHash(path);}
+function vsmRevoke(url){if(url && url.startsWith('blob:')){try{URL.revokeObjectURL(url);}catch(e){}vsmObjectUrls.delete(url);}}
+function vsmBlobUrl(blob){if(!blob)return '';const u=URL.createObjectURL(blob);vsmObjectUrls.add(u);return u;}
+async function vsmLoadMeta(){
+  try{
+    const r=await fetch(VSM_META_URL+'?v='+Date.now(),{cache:'no-store'});
+    if(r.ok)vsmMeta=await r.json();
+  }catch(e){console.warn('metadata.json unavailable',e);}
+  return vsmMeta;
+}
+function vsmPathForFile(name,folder='Songs'){return folder.replace(/^\/+|\/+$/g,'')+'/'+name;}
+function vsmMetaFor(path,name){return vsmMeta.songs?.[path]||vsmMeta.songs?.[name]||null;}
+function vsmApplyShared(song,m){
+  if(!m)return;
+  if(m.title)song.title=m.title;
+  if(m.artist)song.artist=m.artist;
+  if(m.album)song.album=m.album;
+  if(m.albumArtist)song.albumArtist=m.albumArtist;
+  if(m.genre)song.genre=m.genre;
+  if(m.year)song.year=String(m.year).slice(0,4);
+  if(m.track)song.track=String(m.track);
+  if(m.disc)song.disc=String(m.disc);
+  if(m.art)song.artUrl=m.art;
+  if(m.artwork)song.artUrl=m.artwork;
+  if(m.lyrics)song.lyrics=m.lyrics;
+  song.metadataSource=m.source||'github-metadata';
+  song.confidence=m.confidence||'';
+  song.metadataNeedsReview=!!m.needsReview;
+}
+
+const __vsm_original_openDB = openDB;
+openDB = function(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open('vsm_db',5);
+    r.onerror=()=>rej(r.error);
+    r.onsuccess=()=>{db=r.result;res(db);};
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      ['playlists','liked','sources','locals','metadata','offline'].forEach(s=>{if(!d.objectStoreNames.contains(s))d.createObjectStore(s);});
+    };
+  });
+};
+
+async function vsmGetOffline(id){try{return await dbGet('offline',id);}catch(e){return null;}}
+async function vsmSetOffline(id,val){await dbSet('offline',id,val);}
+async function vsmDeleteOffline(id){try{await new Promise((res,rej)=>{const t=db.transaction('offline','readwrite'),s=t.objectStore('offline'),r=s.delete(id);r.onsuccess=res;r.onerror=()=>rej(r.error);});}catch(e){}}
+
+async function vsmRestoreLocalFiles(){
+  const locals=(await dbGet('locals','data'))||[];
+  for(const song of locals){
+    if(song.blob instanceof Blob){song.url=vsmBlobUrl(song.blob);song.offline=true;}
+    if(song.artBlob instanceof Blob){song.art=vsmBlobUrl(song.artBlob);}
+  }
+  await dbSet('locals','data',locals);
+  songs=locals.slice();
+}
+
+const __vsm_original_loadGithubSongs = loadGithubSongs;
+loadGithubSongs = async function(){
+  await vsmLoadMeta();
+  for(const src of SOURCES){
+    if(src.type!=='github')continue;
+    try{
+      const res=await fetch(`https://api.github.com/repos/${src.user}/${src.repo}/contents/${encodeURIComponent(src.folder)}`);
+      if(!res.ok)continue;
+      const files=await res.json();
+      for(const f of files){
+        if(!f.name.match(/\.(mp3|wav|ogg|m4a|flac|aac|opus)$/i))continue;
+        const path=vsmPathForFile(f.name,src.folder);
+        const id=vsmSongId(path);
+        if(songs.find(s=>s.id===id))continue;
+        const raw=`${VSM_RAW_BASE}${path.split('/').map(encodeURIComponent).join('/')}`;
+        const m=vsmMetaFor(path,f.name);
+        const song={id,path,title:f.name.replace(/\.[^.]+$/,''),artist:'Unknown Artist',album:'',albumArtist:'',genre:'',year:'',track:'',disc:'',url:raw,source:'github',sourceId:src.id,art:'',artUrl:'',duration:0,offline:false,_metaScanned:false};
+        vsmApplyShared(song,m);
+        // Apply this device's private edits over the shared GitHub metadata.
+        const localOverride=await dbGet('metadata',id);
+        if(localOverride){
+          for(const k of ['title','artist','album','albumArtist','genre','year','track','disc']){if(localOverride[k]!==undefined) song[k]=localOverride[k];}
+          if(localOverride.art && !song.artUrl) song.artUrl=localOverride.art;
+        }
+        const cached=await vsmGetOffline(id);
+        if(cached?.audioBlob instanceof Blob){song.url=vsmBlobUrl(cached.audioBlob);song.offline=true;}
+        if(cached?.artBlob instanceof Blob){song.art=vsmBlobUrl(cached.artBlob);} else if(song.artUrl){song.art=song.artUrl;}
+        songs.push(song);
+      }
+    }catch(e){console.log('GitHub load error',e);}
+  }
+};
+
+async function vsmFetchBlob(url){const r=await fetch(url,{cache:'no-store'});if(!r.ok)throw new Error('Download failed '+r.status);return await r.blob();}
+async function vsmGetArtworkBlob(song){
+  if(song.artBlob instanceof Blob)return song.artBlob;
+  if(song.artUrl){try{return await vsmFetchBlob(song.artUrl);}catch(e){}}
+  if(song.art && song.art.startsWith('blob:')){try{return await vsmFetchBlob(song.art);}catch(e){}}
+  return null;
+}
+async function downloadOffline(song,quiet=false){
+  if(!song || song.source==='local')return true;
+  try{
+    if(!quiet)showToast('Downloading '+song.title+'...');
+    const audioBlob=await vsmFetchBlob(song.url.startsWith('blob:')?song.url:(song.url));
+    const artBlob=await vsmGetArtworkBlob(song);
+    await vsmSetOffline(song.id,{audioBlob,artBlob,cachedAt:Date.now(),path:song.path||''});
+    if(song.url.startsWith('blob:'))vsmRevoke(song.url);
+    song.url=vsmBlobUrl(audioBlob);song.offline=true;
+    if(artBlob){if(song.art?.startsWith('blob:'))vsmRevoke(song.art);song.art=vsmBlobUrl(artBlob);}
+    if(!quiet)showToast('Available offline on this device');
+    render();
+    return true;
+  }catch(e){console.error(e);showToast('Could not save song offline');return false;}
+}
+async function removeOffline(song){
+  const c=await vsmGetOffline(song.id);if(c?.audioBlob instanceof Blob){song.url=`${VSM_RAW_BASE}${(song.path||'').split('/').map(encodeURIComponent).join('/')}`;}
+  if(song.url.startsWith('blob:'))vsmRevoke(song.url);
+  if(song.art?.startsWith('blob:')){vsmRevoke(song.art);song.art=song.artUrl||'';}
+  song.offline=false;await vsmDeleteOffline(song.id);render();showToast('Removed from offline storage');
+}
+async function downloadAllOffline(){
+  const list=songs.filter(s=>s.source==='github'&&!s.offline);
+  if(!list.length){showToast('All GitHub songs are already offline');return;}
+  showMetaToast('Downloading songs for offline use...');
+  let done=0;
+  for(const s of list){await downloadOffline(s,true);done++;showMetaToast(`Offline songs: ${done}/${list.length}`);}
+  hideMetaToast();render();showToast('Offline download complete');
+}
+
+const __vsm_original_playSong = playSong;
+playSong = function(song,list){
+  if(song && song.source==='github' && !song.offline && navigator.onLine===false){showToast('This song is not downloaded for offline use');return;}
+  return __vsm_original_playSong(song,list);
+};
+
+function vsmOfflineAction(song){return song.offline?()=>removeOffline(song):()=>downloadOffline(song);}
+async function resetLocalMetadata(song){
+  await new Promise((res,rej)=>{const t=db.transaction('metadata','readwrite'),s=t.objectStore('metadata'),r=s.delete(song.id);r.onsuccess=res;r.onerror=()=>rej(r.error);});
+  const m=vsmMetaFor(song.path||'',song.path||'');
+  vsmApplyShared(song,m);
+  const cached=await vsmGetOffline(song.id);
+  if(cached?.artBlob instanceof Blob){if(song.art?.startsWith('blob:'))vsmRevoke(song.art);song.art=vsmBlobUrl(cached.artBlob);}
+  render();updatePlayerUI(song);showToast('Shared metadata restored');
+}
+
+showSongMoreMenu = function(button,song){
+  const r=button.getBoundingClientRect();
+  const items=[
+    {label:liked.has(song.id)?'Remove Favourite':'Favourite',action:async()=>{if(liked.has(song.id))liked.delete(song.id);else liked.add(song.id);await dbSet('liked','data',Array.from(liked));render();updatePlayerUI(song);}},
+    {label:'Edit Details',action:()=>showEditMetadataModal(song)},
+    ...(song.source==='github'?[{label:'Reset to Shared Metadata',action:()=>resetLocalMetadata(song)},{label:song.offline?'Remove Offline Copy':'Download for Offline',action:vsmOfflineAction(song)}]:[]),
+    {label:'Refresh Embedded Tags',action:async()=>{try{const meta=await fetchMetadata(song.url);applyMetadata(song,meta);song._metaScanned=Object.keys(meta||{}).length>0;await saveSongMetadata(song);render();showToast('Embedded metadata refreshed');}catch(e){showToast('No readable embedded tags found');}}},
+    {label:'Add to Playlist',action:()=>showAddToPlaylistModal(song.id)},
+    {label:'Play Next',action:()=>{if(currentIndex<0)queue.push(song);else queue.splice(currentIndex+1,0,song);showToast('Added to queue');}}
+  ];
+  showCtxMenu(r.left,r.bottom,items);
+};
+showCtx = function(e,song){
+  e.preventDefault();
+  const items=[
+    {label:'Edit Details',action:()=>showEditMetadataModal(song)},
+    ...(song.source==='github'?[{label:'Reset to Shared Metadata',action:()=>resetLocalMetadata(song)},{label:song.offline?'Remove Offline Copy':'Download for Offline',action:vsmOfflineAction(song)}]:[]),
+    {label:'Play Next',action:()=>{if(currentIndex<0)queue.push(song);else queue.splice(currentIndex+1,0,song);}},
+    {label:'Add to Playlist',action:()=>showAddToPlaylistModal(song.id)},
+    {label:'Go to Artist',action:()=>{const names=splitArtists(song.artist);if(names[0])showArtistSongs(names[0],songs.filter(s=>splitArtists(s.artist).includes(names[0])));}}
+  ];
+  if(song.source==='local')items.push({label:'Delete',action:()=>deleteLocalSong(song.id),danger:true});
+  showCtxMenu(e.clientX,e.clientY,items);
+};
+
+function vsmLocalSaveData(song){
+  return {id:song.id,path:song.path||'',title:song.title,artist:song.artist,album:song.album,albumArtist:song.albumArtist||'',genre:song.genre,year:song.year,track:song.track,disc:song.disc,source:'local',artBlob:song.artBlob instanceof Blob?song.artBlob:null,blob:song.blob instanceof Blob?song.blob:null,lyrics:song.lyrics||''};
+}
+async function saveSongMetadata(song){
+  const data={title:song.title,artist:song.artist,album:song.album,albumArtist:song.albumArtist||'',genre:song.genre,year:song.year,art:song.artUrl||(song.art && !song.art.startsWith('blob:') ? song.art : ''),track:song.track,disc:song.disc,_metaScanned:song._metaScanned};
+  await dbSet('metadata',song.id,data);
+  if(song.source==='local'){
+    const locals=(await dbGet('locals','data'))||[];const idx=locals.findIndex(x=>x.id===song.id);
+    if(idx>=0){locals[idx]={...locals[idx],...vsmLocalSaveData(song)};await dbSet('locals','data',locals);}
+  }
+}
+
+showEditMetadataModal = async function(song){
+  const sheet=document.getElementById('modalSheet');
+  sheet.innerHTML=`<div class="modal-header"><div class="modal-title">Edit Song Details</div><button class="modal-close" onclick="closeModal()">✕</button></div><div class="modal-body"><div class="source-note">Changes are saved only on this device. GitHub songs are not modified on GitHub.</div><div class="edit-grid"><input class="modal-input full" id="editTitle" value="${esc(song.title)}" placeholder="Song title"><input class="modal-input" id="editArtist" value="${esc(song.artist)}" placeholder="Artist"><input class="modal-input" id="editAlbum" value="${esc(song.album)}" placeholder="Album"><input class="modal-input" id="editAlbumArtist" value="${esc(song.albumArtist||'')}" placeholder="Album Artist"><input class="modal-input" id="editGenre" value="${esc(song.genre)}" placeholder="Genre"><input class="modal-input" id="editYear" value="${esc(song.year)}" placeholder="Year"><input class="modal-input" id="editTrack" value="${esc(song.track||'')}" placeholder="Track"><input class="modal-input" id="editDisc" value="${esc(song.disc||'')}" placeholder="Disc"></div><button class="modal-btn" onclick="saveEditedMetadata('${song.id}')">Save on This Device</button></div>`;
+  document.getElementById('modal').classList.add('show');
+};
+saveEditedMetadata = async function(songId){
+  const song=songs.find(s=>s.id===songId);if(!song)return;
+  song.title=document.getElementById('editTitle').value.trim()||song.title;
+  song.artist=document.getElementById('editArtist').value.trim()||'Unknown Artist';
+  song.album=document.getElementById('editAlbum').value.trim();
+  song.albumArtist=document.getElementById('editAlbumArtist').value.trim();
+  song.genre=document.getElementById('editGenre').value.trim();
+  song.year=document.getElementById('editYear').value.trim();
+  song.track=document.getElementById('editTrack').value.trim();
+  song.disc=document.getElementById('editDisc').value.trim();
+  song._metaScanned=true;
+  await saveSongMetadata(song);closeModal();render();updatePlayerUI(song);showToast('Saved on this device');
+};
+
+function vsmLocalAddHandler(){
+  document.getElementById('fileInput').onchange=async e=>{
+    const files=Array.from(e.target.files);if(!files.length)return;
+    showToast('Saving '+files.length+' song(s) to this device...');
+    const locals=(await dbGet('locals','data'))||[];
+    let added=0;
+    for(const file of files){
+      const key=file.name+'|'+file.size+'|'+file.lastModified;
+      if(locals.some(l=>l.fileKey===key))continue;
+      const song={id:'loc_'+vsmHash(key)+'_'+Math.random().toString(36).slice(2,7),title:file.name.replace(/\.[^.]+$/,''),artist:'Unknown Artist',album:'',albumArtist:'',genre:'',year:'',track:'',disc:'',source:'local',art:'',duration:0,offline:true,blob:file,artBlob:null,fileKey:key};
+      try{const meta=await readID3(file);applyMetadata(song,meta);if(meta.picture){try{song.artBlob=await vsmFetchBlob(meta.picture);}catch(e){}}}catch(e){console.warn('Local tag read failed',e);}
+      song.url=vsmBlobUrl(file);if(song.artBlob)song.art=vsmBlobUrl(song.artBlob);
+      locals.push(vsmLocalSaveData(song));locals[locals.length-1].fileKey=key;locals[locals.length-1].blob=file;locals[locals.length-1].artBlob=song.artBlob;songs.push(song);added++;
+    }
+    await dbSet('locals','data',locals);document.getElementById('fileInput').value='';render();showToast('Added '+added+' song(s) to this device');
+  };
+}
+
+const __vsm_original_init = init;
+init = async function(){
+  await openDB();
+  playlists=await dbGet('playlists','data')||{};
+  liked=new Set((await dbGet('liked','data'))||[]);
+  sources=(await dbGet('sources','data'))||[];
+  await vsmRestoreLocalFiles();
+  await loadGithubSongs();
+  await refreshAllSources();
+  buildSidebar();render();setupAudio();setupEvents();setupVisibility();setupMediaSession();
+  // Do not rescan GitHub files in the browser; metadata.json is the shared source of truth.
+};
+
+const __vsm_original_setupEvents = setupEvents;
+setupEvents = function(){
+  __vsm_original_setupEvents();
+  vsmLocalAddHandler();
+  const fullMore=document.getElementById('fullMore');
+  if(fullMore)fullMore.onclick=()=>{const song=queue[currentIndex];if(song)showSongMoreMenu(fullMore,song);};
+};
+
+function vsmAddOfflineButtons(){
+  const tabs=document.getElementById('tabs');
+  if(!tabs)return;
+  if(currentTab==='library' && currentSubTab==='songs'){
+    if(!document.getElementById('downloadAllOfflineBtn')){
+      const b=document.createElement('button');b.id='downloadAllOfflineBtn';b.className='tab';b.textContent='⇩ Offline All';b.onclick=downloadAllOffline;tabs.appendChild(b);
+    }
+  }
+}
+const __vsm_original_renderLibrary = renderLibrary;
+renderLibrary = function(){__vsm_original_renderLibrary();vsmAddOfflineButtons();};
+
+window.addEventListener('online',()=>showToast('Back online'));
+window.addEventListener('offline',()=>showToast('Offline mode'));
+window.addEventListener('beforeunload',()=>{for(const u of Array.from(vsmObjectUrls))vsmRevoke(u);});
+
 init();
 </script>
 </body>
